@@ -19,12 +19,29 @@ import os
 import sys
 import time
 import uuid
+from contextlib import nullcontext
 from typing import Any, Dict
 
-import mcp.server.stdio
 import mcp.types as types
 from mcp.server.lowlevel import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
+
+# Configuration and observability
+from config import load_config
+from utils.telemetry import TelemetryManager
+from utils.metrics import MCPMetrics
+from utils.correlation import CorrelationContext
+
+# Transport modules
+from transports import run_stdio_server, HTTPTransportManager, HTTP_AVAILABLE
+
+# OpenTelemetry (conditional import)
+try:
+    from opentelemetry import trace
+    from opentelemetry.trace import Status, StatusCode
+    OTEL_AVAILABLE = True
+except ImportError:
+    OTEL_AVAILABLE = False
 
 from tools.base import BaseTool
 from tools.solveit_tools import (
