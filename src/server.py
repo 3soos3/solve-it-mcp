@@ -96,23 +96,63 @@ async def main() -> None:
     configure_logging()
     logger = get_logger(__name__)
 
-    # Parse command line arguments
+    # Load configuration from environment
+    logger.info("Loading server configuration from environment")
+    config = load_config()
+    
+    # Initialize OpenTelemetry if enabled
+    telemetry_manager = None
+    metrics = None
+    
+    if config.opentelemetry.enabled and OTEL_AVAILABLE:
+        logger.info("Initializing OpenTelemetry observability")
+        try:
+            telemetry_manager = TelemetryManager(config.opentelemetry)
+            telemetry_manager.initialize()
+            
+            # Create metrics recorder
+            metrics = MCPMetrics()
+            
+            logger.info(
+                f"OpenTelemetry initialized: service={config.opentelemetry.service_name}, "
+                f"environment={config.opentelemetry.environment}, "
+                f"sampling_rate={config.opentelemetry.trace_sampling_rate}"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize OpenTelemetry: {e}. Continuing without telemetry.")
+            telemetry_manager = None
+            metrics = None
+    elif config.opentelemetry.enabled and not OTEL_AVAILABLE:
+        logger.warning("OpenTelemetry enabled in config but dependencies not installed. Install with: pip install opentelemetry-api opentelemetry-sdk")
+    else:
+        logger.info("OpenTelemetry disabled in configuration")
+
+    # Parse command line arguments (can override config.transport)
     parser = argparse.ArgumentParser(description="SOLVE-IT MCP Server")
     
-    # Transport selection (currently only STDIO supported)
+    # Transport selection - support both STDIO and HTTP
+    transport_choices = ["stdio"]
+    if HTTP_AVAILABLE:
+        transport_choices.append("http")
+    
     parser.add_argument(
         "--transport", 
-        choices=["stdio"], 
-        default="stdio",
-        help="Transport protocol (currently only stdio supported)"
+        choices=transport_choices, 
+        default=config.transport,
+        help=f"Transport protocol (choices: {', '.join(transport_choices)})"
     )
     
     args = parser.parse_args()
+    
+    # Override config transport if specified on CLI
+    if args.transport:
+        config.transport = args.transport
 
     # Log server startup
     logger.info("Starting SOLVE-IT MCP Server")
     logger.info("Server configuration: name=solveit_mcp_server, version=0.1.0")
-    logger.info(f"Transport selected: {args.transport}")
+    logger.info(f"Transport selected: {config.transport}")
+    logger.info(f"HTTP transport available: {HTTP_AVAILABLE}")
 
     # Create the server
     try:
