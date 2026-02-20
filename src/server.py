@@ -76,58 +76,13 @@ from utils.shared_security import SharedSecurityConfig
 from utils.knowledge_base_manager import SharedKnowledgeBase
 
 
-async def run_stdio_server(server: Server) -> None:
-    """Run server with STDIO transport (current default).
+def _noop_context():
+    """No-op context manager for when OpenTelemetry is disabled.
     
-    This function encapsulates the STDIO transport logic to enable future
-    transport abstraction without breaking existing integrations.
-    
-    Args:
-        server: Configured MCP server instance ready to run
+    Returns:
+        A context manager that does nothing (nullcontext)
     """
-    logger = get_logger(__name__)
-    
-    logger.info("Ready to accept MCP connections via STDIO transport")
-
-    try:
-        # Run the server with STDIO transport
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            logger.info("STDIO transport established, starting server run loop")
-
-            await server.run(
-                read_stream,
-                write_stream,
-                InitializationOptions(
-                    server_name="solveit_mcp_server",
-                    server_version="0.1.0",
-                    capabilities=server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
-                ),
-            )
-
-    except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt, shutting down gracefully")
-    except Exception as e:
-        # Import here to avoid module-level import
-        import traceback
-        
-        # Check if this is an ExceptionGroup (TaskGroup error)
-        if hasattr(e, 'exceptions') and hasattr(e, '__class__') and 'ExceptionGroup' in str(type(e)):
-            logger.critical(f"Server run loop failed with ExceptionGroup containing {len(e.exceptions)} exception(s):")
-            for i, exc in enumerate(e.exceptions):
-                logger.critical(f"  Exception {i+1}: {type(exc).__name__}: {exc}")
-                logger.critical(f"  Traceback: {''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))}")
-        else:
-            # Handle regular exceptions
-            logger.critical(f"Server run loop failed: {type(e).__name__}: {e}")
-            logger.critical(f"Full traceback: {''.join(traceback.format_exception(type(e), e, e.__traceback__))}")
-        
-        logger.critical("Server terminating due to critical error")
-        raise
-    finally:
-        logger.info("SOLVE-IT MCP Server shutdown completed")
+    return nullcontext()
 
 
 def create_server() -> Server:
