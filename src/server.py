@@ -104,25 +104,25 @@ async def main() -> None:
     telemetry_manager = None
     metrics = None
     
-    if config.opentelemetry.enabled and OTEL_AVAILABLE:
+    if config.otel.enabled and OTEL_AVAILABLE:
         logger.info("Initializing OpenTelemetry observability")
         try:
-            telemetry_manager = TelemetryManager(config.opentelemetry)
+            telemetry_manager = TelemetryManager(config.otel)
             telemetry_manager.initialize()
             
             # Create metrics recorder
             metrics = MCPMetrics()
             
             logger.info(
-                f"OpenTelemetry initialized: service={config.opentelemetry.service_name}, "
-                f"environment={config.opentelemetry.environment}, "
-                f"sampling_rate={config.opentelemetry.trace_sampling_rate}"
+                f"OpenTelemetry initialized: service={config.otel.service_name}, "
+                f"environment={config.otel.environment}, "
+                f"sampling_rate={config.otel.trace_sampling_rate}"
             )
         except Exception as e:
             logger.warning(f"Failed to initialize OpenTelemetry: {e}. Continuing without telemetry.")
             telemetry_manager = None
             metrics = None
-    elif config.opentelemetry.enabled and not OTEL_AVAILABLE:
+    elif config.otel.enabled and not OTEL_AVAILABLE:
         logger.warning("OpenTelemetry enabled in config but dependencies not installed. Install with: pip install opentelemetry-api opentelemetry-sdk")
     else:
         logger.info("OpenTelemetry disabled in configuration")
@@ -506,7 +506,7 @@ async def main() -> None:
                 raise RuntimeError("HTTP transport not available. Install starlette and uvicorn.")
             
             logger.info(f"Starting HTTP/SSE transport on {config.http.host}:{config.http.port}")
-            http_manager = HTTPTransportManager(server, config.http, metrics)
+            http_manager = HTTPTransportManager(server, config.http)
             await http_manager.run()
         else:
             logger.info("Starting STDIO transport")
