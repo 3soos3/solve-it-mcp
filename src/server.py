@@ -303,8 +303,25 @@ async def main() -> None:
         name: str, arguments: dict[str, Any] | None
     ) -> list[types.TextContent]:
         """Handle tool calls with comprehensive logging and performance tracking."""
-        correlation_id = f"tool_{uuid.uuid4().hex[:8]}"
+        # Generate correlation ID and set context
+        correlation_id = CorrelationContext.generate_correlation_id()
+        CorrelationContext.set_correlation_id(correlation_id)
+        
         start_time = time.time()
+
+        # Track active requests
+        if metrics:
+            metrics.record_active_request(1)
+
+        # Start OpenTelemetry span if available
+        tracer = trace.get_tracer(__name__) if OTEL_AVAILABLE else None
+        span_context = tracer.start_as_current_span(
+            f"mcp.tool.{name}",
+            attributes={
+                "mcp.tool.name": name,
+                "mcp.correlation_id": correlation_id,
+            }
+        ) if tracer else _noop_context()
 
         # Log request details (sanitized)
         arg_count = len(arguments) if arguments else 0
@@ -318,74 +335,108 @@ async def main() -> None:
         )
 
         try:
-            if arguments is None:
-                arguments = {}
+            async with span_context:
+                if arguments is None:
+                    arguments = {}
 
-            # LAYER 1 SECURITY: Request validation (automatic, cannot be bypassed)
-            await security.validate_request(name, arguments)
+                # Add argument count to span
+                if tracer:
+                    trace.get_current_span().set_attribute("mcp.tool.arg_count", arg_count)
 
-            # Dynamic tool lookup
-            if name not in tool_registry:
-                error_msg = f"Unknown tool: {name}"
-                logger.error(
-                    error_msg,
+                # LAYER 1 SECURITY: Request validation (automatic, cannot be bypassed)
+                await security.validate_request(name, arguments)
+
+                # Dynamic tool lookup
+                if name not in tool_registry:
+                    error_msg = f"Unknown tool: {name}"
+                    logger.error(
+                        error_msg,
+                        extra={
+                            "correlation_id": correlation_id,
+                            "tool_name": name,
+                            "available_tools": available_tools,
+                        },
+                    )
+                    raise ValueError(error_msg)
+
+                tool = tool_registry[name]
+                logger.debug(
+                    f"Routing to {tool.name} tool", extra={"correlation_id": correlation_id}
+                )
+
+                # LAYER 2 SECURITY + Validation: Tool-level security and parameter validation
+                validation_start = time.time()
+                params = tool.validate_params(arguments)
+                validation_time = time.time() - validation_start
+
+                logger.debug(
+                    f"Parameter validation completed in {validation_time:.3f}s",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "validation_time_ms": validation_time * 1000,
+                    },
+                )
+
+                # LAYER 1 SECURITY: Execution timeout (automatic, cannot be bypassed)
+                tool_timeout = getattr(tool, 'execution_timeout', shared_security_config.default_timeout)
+                
+                async with security.execution_timeout(tool_timeout, name):
+                    execution_start = time.time()
+                    result = await tool.invoke(params)
+                    execution_time = time.time() - execution_start
+
+                # LAYER 1 SECURITY: Response validation (automatic, cannot be bypassed)
+                safe_result = await security.validate_response(result, name)
+
+                # Total request time
+                total_time = time.time() - start_time
+
+                # Record metrics
+                if metrics:
+                    metrics.record_tool_invocation(name, "success", total_time)
+                    metrics.record_active_request(-1)
+
+                # Add span attributes for success
+                if tracer:
+                    span = trace.get_current_span()
+                    span.set_attribute("mcp.tool.status", "success")
+                    span.set_attribute("mcp.tool.execution_time_ms", execution_time * 1000)
+                    span.set_attribute("mcp.tool.total_time_ms", total_time * 1000)
+                    span.set_attribute("mcp.tool.result_length", len(safe_result))
+                    span.set_status(Status(StatusCode.OK))
+
+                logger.info(
+                    f"Tool call completed successfully: {name}",
                     extra={
                         "correlation_id": correlation_id,
                         "tool_name": name,
-                        "available_tools": available_tools,
+                        "execution_time_ms": execution_time * 1000,
+                        "total_time_ms": total_time * 1000,
+                        "result_length": len(safe_result),
+                        "timeout_limit_ms": tool_timeout * 1000,
                     },
                 )
-                raise ValueError(error_msg)
 
-            tool = tool_registry[name]
-            logger.debug(
-                f"Routing to {tool.name} tool", extra={"correlation_id": correlation_id}
-            )
-
-            # LAYER 2 SECURITY + Validation: Tool-level security and parameter validation
-            validation_start = time.time()
-            params = tool.validate_params(arguments)
-            validation_time = time.time() - validation_start
-
-            logger.debug(
-                f"Parameter validation completed in {validation_time:.3f}s",
-                extra={
-                    "correlation_id": correlation_id,
-                    "validation_time_ms": validation_time * 1000,
-                },
-            )
-
-            # LAYER 1 SECURITY: Execution timeout (automatic, cannot be bypassed)
-            tool_timeout = getattr(tool, 'execution_timeout', shared_security_config.default_timeout)
-            
-            async with security.execution_timeout(tool_timeout, name):
-                execution_start = time.time()
-                result = await tool.invoke(params)
-                execution_time = time.time() - execution_start
-
-            # LAYER 1 SECURITY: Response validation (automatic, cannot be bypassed)
-            safe_result = await security.validate_response(result, name)
-
-            # Total request time
-            total_time = time.time() - start_time
-
-            logger.info(
-                f"Tool call completed successfully: {name}",
-                extra={
-                    "correlation_id": correlation_id,
-                    "tool_name": name,
-                    "execution_time_ms": execution_time * 1000,
-                    "total_time_ms": total_time * 1000,
-                    "result_length": len(safe_result),
-                    "timeout_limit_ms": tool_timeout * 1000,
-                },
-            )
-
-            return [types.TextContent(type="text", text=safe_result)]
+                return [types.TextContent(type="text", text=safe_result)]
 
         except SecurityError as e:
             # Calculate time even for failures
             total_time = time.time() - start_time
+
+            # Record metrics for security violations
+            if metrics:
+                metrics.record_tool_invocation(name, "security_error", total_time)
+                metrics.record_active_request(-1)
+                metrics.record_security_violation(name, str(e))
+
+            # Add span attributes for security error
+            if tracer and OTEL_AVAILABLE:
+                span = trace.get_current_span()
+                span.set_attribute("mcp.tool.status", "security_error")
+                span.set_attribute("mcp.tool.error_type", "SecurityError")
+                span.set_attribute("mcp.tool.total_time_ms", total_time * 1000)
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
 
             # Log security violations with high severity
             logger.error(
@@ -406,6 +457,20 @@ async def main() -> None:
             # Calculate time even for failures
             total_time = time.time() - start_time
 
+            # Record metrics for errors
+            if metrics:
+                metrics.record_tool_invocation(name, "error", total_time)
+                metrics.record_active_request(-1)
+
+            # Add span attributes for error
+            if tracer and OTEL_AVAILABLE:
+                span = trace.get_current_span()
+                span.set_attribute("mcp.tool.status", "error")
+                span.set_attribute("mcp.tool.error_type", type(e).__name__)
+                span.set_attribute("mcp.tool.total_time_ms", total_time * 1000)
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
+
             # Log detailed error information
             logger.error(
                 f"Tool call failed: {name} - {e}",
@@ -425,6 +490,9 @@ async def main() -> None:
 
             # Re-raise the exception (SDK will handle the MCP error response)
             raise
+        finally:
+            # Clear correlation context
+            CorrelationContext.clear_correlation_id()
 
     # Server startup completed successfully
     logger.info("Server initialization completed successfully")
