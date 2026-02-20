@@ -41,7 +41,8 @@ Integration:
     - Grafana for visualization
 """
 
-from typing import Optional, Tuple
+from __future__ import annotations
+from typing import Optional, Tuple, Any
 import logging
 
 # Conditional imports for graceful degradation
