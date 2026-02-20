@@ -497,13 +497,25 @@ async def main() -> None:
     # Server startup completed successfully
     logger.info("Server initialization completed successfully")
     
-    # Run server with selected transport (currently only STDIO supported)
-    # Future enhancement: Add transport selection logic here
-    # if args.transport == "sse":
-    #     await run_sse_server(server)
-    # else:
-    #     await run_stdio_server(server)
-    await run_stdio_server(server)
+    # Run server with selected transport
+    try:
+        if config.transport == "http":
+            if not HTTP_AVAILABLE:
+                logger.critical("HTTP transport requested but dependencies not installed")
+                logger.critical("Install with: pip install starlette uvicorn")
+                raise RuntimeError("HTTP transport not available. Install starlette and uvicorn.")
+            
+            logger.info(f"Starting HTTP/SSE transport on {config.http.host}:{config.http.port}")
+            http_manager = HTTPTransportManager(server, config.http, metrics)
+            await http_manager.run()
+        else:
+            logger.info("Starting STDIO transport")
+            await run_stdio_server(server)
+    finally:
+        # Cleanup telemetry on shutdown
+        if telemetry_manager:
+            logger.info("Shutting down OpenTelemetry")
+            telemetry_manager.shutdown()
 
 
 if __name__ == "__main__":
