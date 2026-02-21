@@ -1,0 +1,55 @@
+# Development Dockerfile for SOLVE-IT MCP Server
+# Includes all development tools, hot-reload, and debugging capabilities
+# Not optimized for production - use Dockerfile instead
+
+FROM python:3.12-slim
+
+# Install system dependencies including development tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    ca-certificates \
+    build-essential \
+    vim \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create development user (same UID as production for consistency)
+RUN groupadd -r mcpuser -g 1000 && \
+    useradd -r -u 1000 -g mcpuser -m -s /bin/bash mcpuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy requirements and install ALL dependencies (including dev tools)
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy application source (in dev, we'll mount this as volume for hot-reload)
+COPY --chown=mcpuser:mcpuser src/ /app/src/
+
+# Clone SOLVE-IT data (can be overridden by volume mount)
+RUN git clone --depth 1 https://github.com/SOLVE-IT-DF/solve-it.git /app/solve-it-main && \
+    rm -rf /app/solve-it-main/.git && \
+    chown -R mcpuser:mcpuser /app/solve-it-main
+
+# Switch to non-root user
+USER mcpuser
+
+# Development environment variables
+ENV PYTHONPATH=/app/src \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    SOLVEIT_DATA_PATH=/app/solve-it-main/data \
+    MCP_TRANSPORT=stdio \
+    OTEL_ENABLED=false \
+    ENVIRONMENT=development \
+    LOG_LEVEL=DEBUG \
+    LOG_FORMAT=text
+
+# Expose HTTP port for development
+EXPOSE 8000
+
+# Default to STDIO mode for development (easier for testing with MCP clients)
+# Override with docker-compose or docker run if needed
+CMD ["python3", "/app/src/server.py", "--transport", "stdio"]
