@@ -1,0 +1,116 @@
+name: Monthly Docker Rebuild
+
+# Smart monthly rebuild: Only rebuilds if the main branch or SOLVE-IT dataset has changed
+# This keeps images up-to-date with security patches and dependency updates
+
+on:
+  schedule:
+    # Run on the 1st of every month at 00:00 UTC
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+    # Allow manual trigger
+
+env:
+  DOCKER_REPO: 3soos3/solve-it-mcp
+
+jobs:
+  check-and-rebuild:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Check if rebuild is needed
+        id: check
+        run: |
+          # Get last commit date on main branch
+          LAST_COMMIT_DATE=$(git log -1 --format=%ct origin/main)
+          CURRENT_DATE=$(date +%s)
+          DAYS_SINCE_COMMIT=$(( ($CURRENT_DATE - $LAST_COMMIT_DATE) / 86400 ))
+          
+          echo "Last commit was ${DAYS_SINCE_COMMIT} days ago"
+          
+          # Check if main branch changed in the last 30 days
+          REBUILD_NEEDED=false
+          
+          if [ $DAYS_SINCE_COMMIT -lt 30 ]; then
+            echo "Main branch has recent changes (within 30 days)"
+            REBUILD_NEEDED=true
+          fi
+          
+          # Check if SOLVE-IT repository has new releases
+          echo "Checking SOLVE-IT repository for updates..."
+          
+          SOLVEIT_LATEST=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // "none"')
+          
+          if [ "$SOLVEIT_LATEST" != "none" ]; then
+            SOLVEIT_RELEASE_DATE=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.published_at')
+            SOLVEIT_RELEASE_TIMESTAMP=$(date -d "$SOLVEIT_RELEASE_DATE" +%s 2>/dev/null || echo "0")
+            
+            # Check if SOLVE-IT was updated in the last 30 days
+            if [ $SOLVEIT_RELEASE_TIMESTAMP -gt 0 ]; then
+              DAYS_SINCE_SOLVEIT=$(( ($CURRENT_DATE - $SOLVEIT_RELEASE_TIMESTAMP) / 86400 ))
+              echo "SOLVE-IT latest release: $SOLVEIT_LATEST (${DAYS_SINCE_SOLVEIT} days ago)"
+              
+              if [ $DAYS_SINCE_SOLVEIT -lt 30 ]; then
+                echo "SOLVE-IT has recent updates (within 30 days)"
+                REBUILD_NEEDED=true
+              fi
+            fi
+          else
+            echo "No SOLVE-IT releases found, checking commits instead..."
+            
+            # Fallback: Check last commit date on SOLVE-IT main branch
+            SOLVEIT_COMMIT_DATE=$(git ls-remote https://github.com/SOLVE-IT-DF/solve-it.git HEAD | cut -f1)
+            if [ -n "$SOLVEIT_COMMIT_DATE" ]; then
+              echo "SOLVE-IT repository has activity"
+              REBUILD_NEEDED=true
+            fi
+          fi
+          
+          # Set output
+          if [ "$REBUILD_NEEDED" = true ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "✅ Rebuild needed: Changes detected in main branch or SOLVE-IT dataset"
+          else
+            echo "rebuild=false" >> $GITHUB_OUTPUT
+            echo "⏭️  Skipping rebuild: No changes in the last 30 days"
+          fi
+      
+      - name: Trigger rebuild
+        if: steps.check.outputs.rebuild == 'true'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: monthly-rebuild
+      
+      - name: Build and push
+        if: steps.check.outputs.rebuild == 'true'
+        uses: ./.github/workflows/docker-publish.yml
+        with:
+          tag: 'monthly-rebuild'
+      
+      - name: Create summary
+        if: always()
+        run: |
+          echo "## Monthly Rebuild Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check.outputs.rebuild }}" = "true" ]; then
+            echo "✅ **Rebuild triggered**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Changes detected in main branch or SOLVE-IT dataset within the last 30 days." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⏭️ **Rebuild skipped**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No changes detected in the last 30 days. Image is still fresh." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next scheduled check:** $(date -d 'first day of next month' +%Y-%m-%d)" >> $GITHUB_STEP_SUMMARY
