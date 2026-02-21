@@ -28,8 +28,8 @@ docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
   3soos3/solve-it-mcp:latest
 
-# Test the server
-curl http://localhost:8000/health
+# Test the server (Kubernetes standard endpoint)
+curl http://localhost:8000/healthzz
 ```
 
 ### Run with Docker Compose
@@ -93,8 +93,10 @@ docker run -p 8000:8000 \
 ```
 
 **Health Endpoints:**
-- `GET /health` - Liveness probe (always returns 200 OK)
-- `GET /ready` - Readiness probe (checks server initialization)
+- `GET /healthz` - Liveness probe (Kubernetes standard)
+- `GET /readyz` - Readiness probe (Kubernetes standard)
+- `GET /health` - Legacy liveness probe (deprecated, use /healthz)
+- `GET /ready` - Legacy readiness probe (deprecated, use /readyz)
 - `POST /mcp/v1` - Main MCP endpoint (JSON or SSE)
 
 ### STDIO Mode
@@ -358,7 +360,7 @@ Common causes:
 
 #### 2. Health Check Failing
 
-**Problem**: `/health` endpoint returns errors or timeouts.
+**Problem**: `/healthz` endpoint returns errors or timeouts.
 
 **Solution**:
 ```bash
@@ -367,11 +369,16 @@ docker exec <container-id> env | grep MCP_TRANSPORT
 
 # Should show: MCP_TRANSPORT=http
 
-# Test from inside container
+# Test from inside container (Kubernetes standard)
+docker exec <container-id> curl -f http://localhost:8000/healthz
+
+# Or test legacy endpoint (deprecated)
 docker exec <container-id> curl -f http://localhost:8000/health
 ```
 
 Health checks only work in HTTP mode. In STDIO mode, health checks are disabled.
+
+**Note**: Use `/healthz` and `/readyz` (Kubernetes standard) instead of `/health` and `/ready` (deprecated).
 
 #### 3. Permission Denied
 

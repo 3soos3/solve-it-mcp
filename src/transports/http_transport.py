@@ -30,8 +30,10 @@ Typical usage:
 
 Kubernetes Integration:
     The transport provides health check endpoints that Kubernetes uses:
-    - /health: Liveness probe (is the server running?)
-    - /ready: Readiness probe (is the server ready to accept traffic?)
+    - /healthz: Liveness probe (is the server running?) [Kubernetes standard]
+    - /readyz: Readiness probe (is the server ready to accept traffic?) [Kubernetes standard]
+    - /health: Legacy liveness probe (deprecated, use /healthz)
+    - /ready: Legacy readiness probe (deprecated, use /readyz)
 
 Content Negotiation:
     Clients can request their preferred response format via Accept header:
@@ -208,8 +210,10 @@ class HTTPTransportManager:
         Routes Created:
             - POST /mcp/v1/messages: JSON-based MCP requests
             - GET /mcp/v1/sse: SSE streaming (if enabled)
-            - GET /health: Kubernetes liveness probe
-            - GET /ready: Kubernetes readiness probe
+            - GET /healthz: Kubernetes liveness probe (recommended)
+            - GET /readyz: Kubernetes readiness probe (recommended)
+            - GET /health: Legacy liveness probe (deprecated, use /healthz)
+            - GET /ready: Legacy readiness probe (deprecated, use /readyz)
         
         Examples:
             >>> app = manager._create_app()
@@ -240,9 +244,13 @@ class HTTPTransportManager:
                 methods=["POST", "OPTIONS"]
             ),
             
-            # Health check endpoints
-            Route(self.config.health_path, self.health_check, methods=["GET"]),
-            Route(self.config.ready_path, self.readiness_check, methods=["GET"]),
+            # Health check endpoints (Kubernetes standard with /z suffix)
+            Route("/healthz", self.health_check, methods=["GET"]),
+            Route("/readyz", self.readiness_check, methods=["GET"]),
+            
+            # Legacy health check endpoints (backward compatibility)
+            Route(self.config.health_path, self.health_check, methods=["GET"]),  # /health (deprecated)
+            Route(self.config.ready_path, self.readiness_check, methods=["GET"]),  # /ready (deprecated)
         ]
         
         # Add SSE endpoint if enabled
@@ -546,6 +554,8 @@ class HTTPTransportManager:
         This endpoint indicates whether the server process is alive and running.
         Kubernetes uses this to detect crashed or hung processes.
         
+        Available at both /healthz (recommended) and /health (deprecated).
+        
         Returns:
             JSONResponse: Health status (always 200 OK if reachable)
         
@@ -557,21 +567,21 @@ class HTTPTransportManager:
             }
             ```
         
-        Kubernetes Configuration:
+        Kubernetes Configuration (recommended):
             ```yaml
             livenessProbe:
               httpGet:
-                path: /health
+                path: /healthz
                 port: 8000
               initialDelaySeconds: 10
-              periodSeconds: 10
+              periodSeconds: 30
               timeoutSeconds: 3
               failureThreshold: 3
             ```
         
         Examples:
             >>> # Kubernetes performs periodic health checks
-            >>> GET /health HTTP/1.1
+            >>> GET /healthz HTTP/1.1
             >>> 
             >>> HTTP/1.1 200 OK
             >>> {"status": "healthy", "service": "solveit-mcp-server"}
@@ -580,6 +590,8 @@ class HTTPTransportManager:
             This check is simple and always returns 200 if the process
             is running. For more sophisticated checks, add validation
             logic (e.g., database connectivity, memory usage).
+            
+            Use /healthz (Kubernetes standard) instead of /health (legacy).
         """
         return JSONResponse({
             "status": "healthy",
@@ -592,6 +604,8 @@ class HTTPTransportManager:
         This endpoint indicates whether the server is ready to accept traffic.
         Kubernetes uses this to know when to start routing requests to the pod.
         
+        Available at both /readyz (recommended) and /ready (deprecated).
+        
         Returns:
             JSONResponse: Readiness status with detailed information
         
@@ -601,20 +615,19 @@ class HTTPTransportManager:
               "status": "ready",
               "service": "solveit-mcp-server",
               "checks": {
-                "mcp_server": true,
-                "knowledge_base": true
+                "mcp_server": true
               }
             }
             ```
         
-        Kubernetes Configuration:
+        Kubernetes Configuration (recommended):
             ```yaml
             readinessProbe:
               httpGet:
-                path: /ready
+                path: /readyz
                 port: 8000
               initialDelaySeconds: 5
-              periodSeconds: 5
+              periodSeconds: 10
               timeoutSeconds: 3
               failureThreshold: 3
             ```
@@ -622,7 +635,7 @@ class HTTPTransportManager:
         Examples:
             During startup (not ready):
             ```
-            GET /ready HTTP/1.1
+            GET /readyz HTTP/1.1
             
             HTTP/1.1 503 Service Unavailable
             {"status": "not_ready", "reason": "knowledge_base_loading"}
@@ -630,7 +643,7 @@ class HTTPTransportManager:
             
             After startup (ready):
             ```
-            GET /ready HTTP/1.1
+            GET /readyz HTTP/1.1
             
             HTTP/1.1 200 OK
             {"status": "ready", "service": "solveit-mcp-server"}
@@ -641,6 +654,8 @@ class HTTPTransportManager:
             - Knowledge base loaded
             - Database connections established
             - Required services available
+            
+            Use /readyz (Kubernetes standard) instead of /ready (legacy).
         """
         # TODO: Add actual readiness checks
         # - Check if knowledge base is loaded

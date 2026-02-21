@@ -114,11 +114,11 @@ ENV PYTHONPATH=/app/src \
 # Expose HTTP port (default 8000, configurable via HTTP_PORT)
 EXPOSE 8000
 
-# Health check for HTTP mode (liveness probe)
+# Health check for HTTP mode (liveness probe using Kubernetes standard /healthz)
 # Checks every 30s, timeout 3s, start after 10s, 3 retries before unhealthy
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD if [ "$MCP_TRANSPORT" = "http" ]; then \
-            curl -f http://localhost:${HTTP_PORT}/health || exit 1; \
+            curl -f http://localhost:${HTTP_PORT}/healthz || exit 1; \
         else \
             exit 0; \
         fi

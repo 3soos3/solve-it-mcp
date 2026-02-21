@@ -150,10 +150,14 @@ jobs:
           # Wait for container to start
           sleep 10
           
-          # Test health endpoint
-          curl -f http://localhost:8000/health || exit 1
+          # Test health endpoint (Kubernetes standard /healthz)
+          curl -f http://localhost:8000/healthz || exit 1
           
-          # Test ready endpoint
+          # Test ready endpoint (Kubernetes standard /readyz)
+          curl -f http://localhost:8000/readyz || exit 1
+          
+          # Test legacy endpoints (backward compatibility)
+          curl -f http://localhost:8000/health || exit 1
           curl -f http://localhost:8000/ready || exit 1
           
           # Cleanup

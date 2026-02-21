@@ -106,7 +106,7 @@ kubectl get pods -l app.kubernetes.io/name=solveit-mcp --watch
 
 # Test the service
 kubectl port-forward svc/solveit-mcp 8000:8000
-curl http://localhost:8000/health
+curl http://localhost:8000/healthz
 ```
 
 ### Chart Repository
@@ -242,7 +242,7 @@ Restarts the pod if the server becomes unresponsive:
 ```yaml
 livenessProbe:
   httpGet:
-    path: /health
+    path: /healthz  # Kubernetes standard endpoint
     port: 8000
   initialDelaySeconds: 10
   periodSeconds: 30
@@ -257,7 +257,7 @@ Removes pod from service if not ready to handle requests:
 ```yaml
 readinessProbe:
   httpGet:
-    path: /ready
+    path: /readyz  # Kubernetes standard endpoint
     port: 8000
   initialDelaySeconds: 5
   periodSeconds: 10
@@ -266,6 +266,8 @@ readinessProbe:
 ```
 
 Both probes are configured automatically in the Helm chart.
+
+**Note**: The server supports both `/healthz` and `/readyz` (Kubernetes standard) as well as `/health` and `/ready` (legacy, deprecated) for backward compatibility.
 
 ---
 
@@ -411,7 +413,11 @@ Common issues:
 ### Health Checks Failing
 
 ```bash
-# Test health endpoint from another pod
+# Test health endpoint from another pod (Kubernetes standard)
+kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
+  curl http://solveit-mcp:8000/healthz
+
+# Or test legacy endpoint (deprecated)
 kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
   curl http://solveit-mcp:8000/health
 
@@ -428,9 +434,9 @@ kubectl get endpoints solveit-mcp
 # Verify service configuration
 kubectl describe service solveit-mcp
 
-# Test from another pod
+# Test from another pod (Kubernetes standard)
 kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
-  curl http://solveit-mcp.default.svc.cluster.local:8000/health
+  curl http://solveit-mcp.default.svc.cluster.local:8000/healthz
 ```
 
 ### High Memory Usage
