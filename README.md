@@ -15,7 +15,61 @@ SOLVE-IT provides a structured approach to digital forensics investigations thro
 
 See the main repository here: https://github.com/SOLVE-IT-DF/solve-it
 
-## Quick Start
+## Docker Quick Start
+
+**Recommended**: Use Docker for the easiest deployment experience.
+
+### Pull and Run
+
+```bash
+# Pull the latest image
+docker pull 3soos3/solve-it-mcp:latest
+
+# Run in HTTP mode
+docker run -p 8000:8000 3soos3/solve-it-mcp:latest
+
+# Test the server
+curl http://localhost:8000/health
+```
+
+### Docker Compose
+
+```bash
+# Clone the repository
+git clone https://github.com/3soos3/solve-it-mcp.git
+cd solve-it-mcp
+
+# Start with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+```
+
+### Available Images
+
+- **Docker Hub**: `3soos3/solve-it-mcp`
+- **Tags**: `latest`, `stable`, `v0.2025-10`
+- **Architectures**: linux/amd64, linux/arm64, linux/arm/v7
+
+For detailed Docker documentation, see [docs/DOCKER.md](docs/DOCKER.md).
+
+### Kubernetes/Helm
+
+For production Kubernetes deployments, use the official Helm chart:
+
+```bash
+# Add Helm repository
+helm repo add solveit https://3soos3.github.io/solveit-charts
+helm repo update
+
+# Install the chart
+helm install solveit-mcp solveit/solveit-mcp
+```
+
+See [docs/KUBERNETES.md](docs/KUBERNETES.md) for complete Kubernetes documentation.
+
+## Quick Start (Local Development)
 
 ### 1. Prerequisites
 
