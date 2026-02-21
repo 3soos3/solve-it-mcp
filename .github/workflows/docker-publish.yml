@@ -1,0 +1,206 @@
+name: Docker Build and Publish
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Additional tag to apply'
+        required: false
+        type: string
+
+env:
+  DOCKER_REPO: 3soos3/solve-it-mcp
+  PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: Extract metadata
+        id: meta
+        run: |
+          # Get git info
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          # Determine version
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+          else
+            VERSION="stable"
+          fi
+          
+          echo "git_commit=${GIT_COMMIT}" >> $GITHUB_OUTPUT
+          echo "git_branch=${GIT_BRANCH}" >> $GITHUB_OUTPUT
+          echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          
+          # Build tags
+          TAGS="${{ env.DOCKER_REPO }}:sha-${GIT_COMMIT}"
+          
+          # Add stable tag for main branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            TAGS="${TAGS},${{ env.DOCKER_REPO }}:stable"
+            TAGS="${TAGS},${{ env.DOCKER_REPO }}:latest"
+          fi
+          
+          # Add version tag for git tags
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAGS="${TAGS},${{ env.DOCKER_REPO }}:${VERSION}"
+            TAGS="${TAGS},${{ env.DOCKER_REPO }}:latest"
+          fi
+          
+          # Add custom tag if provided (workflow_dispatch)
+          if [[ -n "${{ github.event.inputs.tag }}" ]]; then
+            TAGS="${TAGS},${{ env.DOCKER_REPO }}:${{ github.event.inputs.tag }}"
+          fi
+          
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          
+          echo "Generated tags: ${TAGS}"
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ env.PLATFORMS }}
+          push: false
+          load: false
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ steps.meta.outputs.git_commit }}
+            VERSION=${{ steps.meta.outputs.version }}
+            SOLVE_IT_SOURCE=github
+            SOLVE_IT_VERSION=main
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_REPO }}:sha-${{ steps.meta.outputs.git_commit }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+        continue-on-error: false
+      
+      - name: Upload Trivy results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+      
+      - name: Test image health (smoke test)
+        if: github.event_name != 'pull_request'
+        run: |
+          # For multi-arch builds, we need to pull and test locally
+          # Extract first tag for testing
+          FIRST_TAG=$(echo "${{ steps.meta.outputs.tags }}" | cut -d',' -f1)
+          
+          echo "Testing image: ${FIRST_TAG}"
+          
+          # Build for local platform only (for testing)
+          docker build \
+            --build-arg BUILD_DATE=${{ steps.meta.outputs.build_date }} \
+            --build-arg VCS_REF=${{ steps.meta.outputs.git_commit }} \
+            --build-arg VERSION=${{ steps.meta.outputs.version }} \
+            -t test-image \
+            .
+          
+          # Run container
+          docker run -d --name test-container \
+            -e MCP_TRANSPORT=http \
+            -e HTTP_PORT=8000 \
+            -p 8000:8000 \
+            test-image
+          
+          # Wait for container to start
+          sleep 10
+          
+          # Test health endpoint
+          curl -f http://localhost:8000/health || exit 1
+          
+          # Test ready endpoint
+          curl -f http://localhost:8000/ready || exit 1
+          
+          # Cleanup
+          docker stop test-container
+          docker rm test-container
+          
+          echo "Smoke tests passed!"
+      
+      - name: Push Docker image
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ steps.meta.outputs.git_commit }}
+            VERSION=${{ steps.meta.outputs.version }}
+            SOLVE_IT_SOURCE=github
+            SOLVE_IT_VERSION=main
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Update Docker Hub description
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKER_REPO }}
+          short-description: "MCP server for SOLVE-IT Digital Forensics Knowledge Base"
+          readme-filepath: ./README.md
+      
+      - name: Create job summary
+        if: always()
+        run: |
+          echo "## Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ env.DOCKER_REPO }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ steps.meta.outputs.git_commit }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Build Date:** ${{ steps.meta.outputs.build_date }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tags" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Platforms" >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.PLATFORMS }}" | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
