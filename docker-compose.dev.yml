@@ -1,0 +1,55 @@
+version: '3.8'
+
+# Development Docker Compose configuration for SOLVE-IT MCP Server
+# Includes volume mounts for hot-reload, debug tools, and STDIO mode
+
+services:
+  solveit-mcp-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: solveit-mcp-dev
+    
+    # Development environment with debug logging
+    environment:
+      # Transport: STDIO for easy testing with MCP clients
+      MCP_TRANSPORT: stdio
+      
+      # Logging: Verbose text format for development
+      LOG_LEVEL: DEBUG
+      LOG_FORMAT: text
+      
+      # OpenTelemetry: Disabled by default in dev (enable if testing observability)
+      OTEL_ENABLED: "false"
+      ENVIRONMENT: development
+    
+    # Volume mounts for hot-reload development
+    volumes:
+      # Mount source code for live editing
+      - ./src:/app/src:ro
+      
+      # Mount tests for running inside container
+      - ./tests:/app/tests:ro
+      
+      # Optional: Mount local SOLVE-IT data if you have a custom dataset
+      # - ./solve-it-main:/app/solve-it-main:ro
+    
+    # Port mapping (useful if switching to HTTP mode for testing)
+    ports:
+      - "8000:8000"
+    
+    # Interactive mode with TTY for better debugging
+    stdin_open: true
+    tty: true
+    
+    # Restart policy: don't restart in dev (easier debugging)
+    restart: "no"
+    
+    # Networks
+    networks:
+      - mcp-dev-network
+
+networks:
+  mcp-dev-network:
+    driver: bridge
+    name: solveit-mcp-dev-network
