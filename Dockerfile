@@ -86,12 +86,14 @@ RUN if [ "$SOLVE_IT_SOURCE" = "github" ]; then \
         mkdir -p /app/solve-it-main; \
     fi
 
-# Copy local SOLVE-IT data if building with SOLVE_IT_SOURCE=local
-# This will be a no-op if directory doesn't exist in build context
-COPY --chown=mcpuser:mcpuser solve-it-main* /app/solve-it-main/ 2>/dev/null || true
-
 # Set ownership of all app files to non-root user
 RUN chown -R mcpuser:mcpuser /app
+
+# Copy local SOLVE-IT data if building with SOLVE_IT_SOURCE=local
+# Note: This step is only used when SOLVE_IT_SOURCE=local (requires solve-it-main/ in build context)
+# For github mode (default), data is already cloned in previous step
+# Commented out to avoid Podman build issues - uncomment if using local SOLVE-IT data
+# COPY --chown=mcpuser:mcpuser solve-it-main/ /app/solve-it-main/
 
 # Switch to non-root user
 USER mcpuser
@@ -100,7 +102,7 @@ USER mcpuser
 ENV PYTHONPATH=/app/src \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    SOLVEIT_DATA_PATH=/app/solve-it-main/data \
+    SOLVE_IT_DATA_PATH=/app/solve-it-main/data \
     MCP_TRANSPORT=http \
     HTTP_HOST=0.0.0.0 \
     HTTP_PORT=8000 \
