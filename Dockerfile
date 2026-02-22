@@ -1,17 +1,22 @@
-# Production Dockerfile for SOLVE-IT MCP Server
-# Multi-stage build for minimal image size and security
+# Production Dockerfile for SOLVE-IT MCP Server - Alpine Linux
+# Multi-stage build for minimal image size and maximum security
 # Supports multi-architecture: linux/amd64, linux/arm64, linux/arm/v7
+# Base: Alpine Linux (musl libc) for smallest attack surface
 
 # ============================================================================
 # Stage 1: Builder
 # ============================================================================
-FROM python:3.12-slim AS builder
+FROM python:3.12-alpine AS builder
 
 # Install system dependencies needed for building Python packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+# Alpine uses apk instead of apt-get
+RUN apk add --no-cache \
+    build-base \
+    libffi-dev \
+    openssl-dev \
     git \
-    && rm -rf /var/lib/apt/lists/*
+    cargo \
+    rust
 
 # Create virtual environment for isolated dependency management
 RUN python -m venv /opt/venv
@@ -23,14 +28,14 @@ COPY requirements.txt .
 
 # Install only production dependencies (exclude dev tools)
 # We filter out pytest, mypy, black, ruff from requirements.txt
-RUN grep -v "pytest\|mypy\|black\|ruff" requirements.txt > requirements.prod.txt && \
-    pip install --no-cache-dir --upgrade pip && \
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    sed -E '/^(pytest|mypy|black|ruff)/d' requirements.txt > requirements.prod.txt && \
     pip install --no-cache-dir -r requirements.prod.txt
 
 # ============================================================================
 # Stage 2: Runtime
 # ============================================================================
-FROM python:3.12-slim AS runtime
+FROM python:3.12-alpine AS runtime
 
 # Build arguments for flexibility
 ARG SOLVE_IT_SOURCE=github
@@ -49,18 +54,21 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.title="SOLVE-IT MCP Server" \
       org.opencontainers.image.description="MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.base.name="docker.io/library/python:3.12-slim"
+      org.opencontainers.image.base.name="docker.io/library/python:3.12-alpine"
 
 # Install runtime system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Alpine uses apk instead of apt-get
+RUN apk add --no-cache \
     git \
     curl \
     ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    libffi \
+    openssl
 
 # Create non-root user for security
-RUN groupadd -r mcpuser -g 1000 && \
-    useradd -r -u 1000 -g mcpuser -m -s /bin/bash mcpuser
+# Alpine uses addgroup/adduser instead of groupadd/useradd
+RUN addgroup -g 1000 mcpuser && \
+    adduser -D -u 1000 -G mcpuser -h /home/mcpuser -s /bin/sh mcpuser
 
 # Set working directory
 WORKDIR /app

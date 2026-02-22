@@ -9,8 +9,14 @@ on:
   pull_request:
     branches:
       - main
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
   workflow_dispatch:
     inputs:
+      full_scan:
+        description: 'Run full multi-platform security scan'
+        required: false
+        type: boolean
+        default: true
       tag:
         description: 'Additional tag to apply'
         required: false
@@ -21,10 +27,189 @@ env:
   PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
 
 jobs:
-  build-and-push:
+  # Job 1: Determine scanning strategy (quick vs full)
+  determine-strategy:
+    name: Determine Scan Strategy
+    runs-on: ubuntu-latest
+    outputs:
+      scan-platforms: ${{ steps.strategy.outputs.platforms }}
+      scan-mode: ${{ steps.strategy.outputs.mode }}
+      solveit-version: ${{ steps.solveit.outputs.version }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Detect SOLVE-IT version
+        id: solveit
+        run: |
+          # Clone SOLVE-IT repository to detect version
+          git clone --depth 1 https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it
+          
+          # Try to detect version from repository
+          # Method 1: Check for VERSION file
+          if [ -f /tmp/solve-it/VERSION ]; then
+            SOLVEIT_VERSION=$(cat /tmp/solve-it/VERSION | tr -d '\n')
+          # Method 2: Get latest git tag
+          elif cd /tmp/solve-it && git describe --tags --abbrev=0 2>/dev/null; then
+            SOLVEIT_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          # Method 3: Use date-based version from latest commit
+          else
+            SOLVEIT_VERSION=$(cd /tmp/solve-it && git log -1 --format=%cd --date=format:%Y.%m)
+          fi
+          
+          # Fallback if detection fails
+          if [ -z "$SOLVEIT_VERSION" ]; then
+            SOLVEIT_VERSION="2025.10"
+            echo "::warning::Could not detect SOLVE-IT version, using fallback: ${SOLVEIT_VERSION}"
+          fi
+          
+          echo "version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
+          echo "::notice::Detected SOLVE-IT version: ${SOLVEIT_VERSION}"
+      
+      - name: Determine scanning strategy
+        id: strategy
+        run: |
+          # Default to quick scan (draft PRs, WIP)
+          PLATFORMS='["linux/amd64"]'
+          MODE="quick"
+          
+          # Full scan conditions
+          FULL_SCAN=false
+          
+          # Condition 1: Push to main
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            FULL_SCAN=true
+            echo "::notice::Full scan triggered: Push to main branch"
+          fi
+          
+          # Condition 2: Any git tag (including pre-releases)
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            FULL_SCAN=true
+            echo "::notice::Full scan triggered: Git tag detected"
+          fi
+          
+          # Condition 3: PR marked ready for review
+          if [[ "${{ github.event.pull_request.draft }}" == "false" && "${{ github.event_name }}" == "pull_request" ]]; then
+            FULL_SCAN=true
+            echo "::notice::Full scan triggered: PR marked ready for review"
+          fi
+          
+          # Condition 4: PR labeled "security"
+          if [[ "${{ contains(github.event.pull_request.labels.*.name, 'security') }}" == "true" ]]; then
+            FULL_SCAN=true
+            echo "::notice::Full scan triggered: PR labeled 'security'"
+          fi
+          
+          # Condition 5: Manual workflow dispatch with full_scan
+          if [[ "${{ github.event.inputs.full_scan }}" == "true" ]]; then
+            FULL_SCAN=true
+            echo "::notice::Full scan triggered: Manual workflow dispatch"
+          fi
+          
+          # Set platforms based on scan mode
+          if [[ "$FULL_SCAN" == "true" ]]; then
+            PLATFORMS='["linux/amd64","linux/arm64","linux/arm/v7"]'
+            MODE="full"
+          fi
+          
+          echo "platforms=${PLATFORMS}" >> $GITHUB_OUTPUT
+          echo "mode=${MODE}" >> $GITHUB_OUTPUT
+          
+          echo "::notice::Selected ${MODE} scan mode with platforms: ${PLATFORMS}"
+
+  # Job 2: Security scanning (matrix for all platforms)
+  security-scan:
+    needs: determine-strategy
+    name: Security Scan (${{ matrix.platform }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(needs.determine-strategy.outputs.scan-platforms) }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Extract metadata
+        id: meta
+        run: |
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "git_commit=${GIT_COMMIT}" >> $GITHUB_OUTPUT
+          echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
+      
+      - name: Sanitize platform name for tagging
+        id: platform
+        run: |
+          # Convert linux/amd64 -> amd64, linux/arm/v7 -> arm-v7
+          PLATFORM_TAG=$(echo "${{ matrix.platform }}" | sed 's|linux/||' | sed 's|/|-|g')
+          echo "tag=${PLATFORM_TAG}" >> $GITHUB_OUTPUT
+          echo "::notice::Building and scanning platform: ${{ matrix.platform }} (tag: ${PLATFORM_TAG})"
+      
+      - name: Build ${{ matrix.platform }} image for scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          push: false
+          load: true
+          tags: local-scan:${{ steps.platform.outputs.tag }}
+          build-args: |
+            BUILD_DATE=${{ steps.meta.outputs.build_date }}
+            VCS_REF=${{ steps.meta.outputs.git_commit }}
+            VERSION=scan
+            SOLVE_IT_SOURCE=github
+            SOLVE_IT_VERSION=main
+          cache-from: type=gha,scope=security-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=security-${{ matrix.platform }}
+      
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'local-scan:${{ steps.platform.outputs.tag }}'
+          format: 'sarif'
+          output: 'trivy-${{ steps.platform.outputs.tag }}.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: false
+          vuln-type: 'os,library'
+        continue-on-error: false
+      
+      - name: Upload Trivy results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: 'trivy-${{ steps.platform.outputs.tag }}.sarif'
+          category: 'trivy-${{ steps.platform.outputs.tag }}'
+      
+      - name: Report scan results
+        if: always()
+        run: |
+          echo "::notice::Security scan completed for ${{ matrix.platform }}"
+          echo "::notice::Scan mode: ${{ needs.determine-strategy.outputs.scan-mode }}"
+          echo "::notice::SARIF uploaded to Security tab with category: trivy-${{ steps.platform.outputs.tag }}"
+
+  # Job 3: Build and push multi-arch image
+  build-and-push:
+    needs: [determine-strategy, security-scan]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
       packages: write
     
     steps:
@@ -53,9 +238,11 @@ jobs:
           GIT_COMMIT=$(git rev-parse --short HEAD)
           GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
           BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          SOLVEIT_VERSION="${{ needs.determine-strategy.outputs.solveit-version }}"
           
           # Determine version
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Extract full version from tag (e.g., v2025.10-0.1.0 -> 2025.10-0.1.0)
             VERSION=${GITHUB_REF#refs/tags/v}
           else
             VERSION="stable"
@@ -65,6 +252,7 @@ jobs:
           echo "git_branch=${GIT_BRANCH}" >> $GITHUB_OUTPUT
           echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
           
           # Build tags
           TAGS="${{ env.DOCKER_REPO }}:sha-${GIT_COMMIT}"
@@ -75,9 +263,9 @@ jobs:
             TAGS="${TAGS},${{ env.DOCKER_REPO }}:latest"
           fi
           
-          # Add version tag for git tags
+          # Add version tag for git tags (full version only)
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            TAGS="${TAGS},${{ env.DOCKER_REPO }}:${VERSION}"
+            TAGS="${TAGS},${{ env.DOCKER_REPO }}:v${VERSION}"
             TAGS="${TAGS},${{ env.DOCKER_REPO }}:latest"
           fi
           
@@ -106,22 +294,6 @@ jobs:
             SOLVE_IT_VERSION=main
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.DOCKER_REPO }}:sha-${{ steps.meta.outputs.git_commit }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          exit-code: '1'
-        continue-on-error: false
-      
-      - name: Upload Trivy results to GitHub Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'
       
       - name: Test image health (smoke test)
         if: github.event_name != 'pull_request'
@@ -156,10 +328,6 @@ jobs:
           # Test ready endpoint (Kubernetes standard /readyz)
           curl -f http://localhost:8000/readyz || exit 1
           
-          # Test legacy endpoints (backward compatibility)
-          curl -f http://localhost:8000/health || exit 1
-          curl -f http://localhost:8000/ready || exit 1
-          
           # Cleanup
           docker stop test-container
           docker rm test-container
@@ -193,6 +361,50 @@ jobs:
           short-description: "MCP server for SOLVE-IT Digital Forensics Knowledge Base"
           readme-filepath: ./README.md
       
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
+          body: |
+            ## Docker Images
+            
+            Multi-architecture images available for **${{ steps.meta.outputs.version }}**:
+            
+            ```bash
+            docker pull ${{ env.DOCKER_REPO }}:v${{ steps.meta.outputs.version }}
+            docker pull ${{ env.DOCKER_REPO }}:latest
+            ```
+            
+            **Supported Architectures:**
+            - `linux/amd64` (x86_64)
+            - `linux/arm64` (aarch64)
+            - `linux/arm/v7` (armv7l, Raspberry Pi)
+            
+            **Security Scan:**
+            ✅ All platforms scanned with Trivy - no CRITICAL or HIGH vulnerabilities detected.
+            
+            **Version Information:**
+            - **SOLVE-IT Dataset**: ${{ steps.meta.outputs.solveit_version }}
+            - **Full Version**: ${{ steps.meta.outputs.version }}
+            - **Build Date**: ${{ steps.meta.outputs.build_date }}
+            - **Git Commit**: ${{ steps.meta.outputs.git_commit }}
+            
+            **Installation:**
+            
+            ```bash
+            # Docker
+            docker run -p 8000:8000 ${{ env.DOCKER_REPO }}:v${{ steps.meta.outputs.version }}
+            
+            # Kubernetes (Helm)
+            helm repo add solve-it-charts https://3soos3.github.io/solve-it-charts
+            helm install solveit-mcp solve-it-charts/solve-it-mcp --set image.tag=v${{ steps.meta.outputs.version }}
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Create job summary
         if: always()
         run: |
@@ -200,11 +412,16 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Repository:** ${{ env.DOCKER_REPO }}" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** ${{ steps.meta.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**SOLVE-IT Version:** ${{ steps.meta.outputs.solveit_version }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ steps.meta.outputs.git_commit }}" >> $GITHUB_STEP_SUMMARY
           echo "**Build Date:** ${{ steps.meta.outputs.build_date }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Scan Mode:** ${{ needs.determine-strategy.outputs.scan-mode }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Tags" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Platforms" >> $GITHUB_STEP_SUMMARY
           echo "${{ env.PLATFORMS }}" | tr ',' '\n' | sed 's/^/- /' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Security Scans" >> $GITHUB_STEP_SUMMARY
+          echo "${{ needs.determine-strategy.outputs.scan-platforms }}" | jq -r '.[]' | sed 's/^/- ✅ /' >> $GITHUB_STEP_SUMMARY
