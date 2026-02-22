@@ -208,3 +208,22 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# CI/CD and test artifacts
+*.sarif
+pytest-results.xml
+bandit-report.json
+pip-audit.json
+trivy-*.sarif
+hadolint.sarif
+
+# Backup files
+*.backup
+*.bak
+Dockerfile.*.backup
+
+# Local test files
+test-*.sh
+*-test-results.md
+ALPINE_TEST_RESULTS.md
+HEALTHZ_IMPLEMENTATION_SUMMARY.md
