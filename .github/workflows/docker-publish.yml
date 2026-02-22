@@ -182,7 +182,7 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: false
-          load: true
+          outputs: type=docker,dest=/tmp/image-${{ steps.platform.outputs.tag }}.tar
           tags: local-scan:${{ steps.platform.outputs.tag }}
           build-args: |
             BUILD_DATE=${{ steps.meta.outputs.build_date }}
@@ -196,7 +196,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'local-scan:${{ steps.platform.outputs.tag }}'
+          input: '/tmp/image-${{ steps.platform.outputs.tag }}.tar'
           format: 'sarif'
           output: 'trivy-${{ steps.platform.outputs.tag }}.sarif'
           severity: 'CRITICAL,HIGH'
