@@ -1,6 +1,6 @@
 name: Monthly Docker Rebuild
 
-# Smart monthly rebuild: Only rebuilds if the main branch or SOLVE-IT dataset has changed
+# Smart monthly rebuild: Only rebuilds if SOLVE-IT dataset version is newer than published image
 # This keeps images up-to-date with security patches and dependency updates
 
 on:
@@ -8,17 +8,21 @@ on:
     # Run on the 1st of every month at 00:00 UTC
     - cron: '0 0 1 * *'
   workflow_dispatch:
-    # Allow manual trigger
+    # Allow manual trigger for testing
 
 env:
   DOCKER_REPO: 3soos3/solve-it-mcp
+  PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
 
 jobs:
-  check-and-rebuild:
+  check-versions:
+    name: Check if rebuild needed
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
+    outputs:
+      rebuild-needed: ${{ steps.compare.outputs.rebuild }}
+      solveit-version: ${{ steps.detect.outputs.solveit_version }}
+      new-tag: ${{ steps.compare.outputs.new_tag }}
+      mcp-patch: ${{ steps.compare.outputs.mcp_patch }}
     
     steps:
       - name: Checkout code
@@ -26,91 +30,168 @@ jobs:
         with:
           fetch-depth: 0
       
-      - name: Check if rebuild is needed
-        id: check
+      - name: Detect latest SOLVE-IT version
+        id: detect
         run: |
-          # Get last commit date on main branch
-          LAST_COMMIT_DATE=$(git log -1 --format=%ct origin/main)
-          CURRENT_DATE=$(date +%s)
-          DAYS_SINCE_COMMIT=$(( ($CURRENT_DATE - $LAST_COMMIT_DATE) / 86400 ))
+          # Clone SOLVE-IT repository to detect latest version
+          echo "Cloning SOLVE-IT repository..."
+          git clone --depth 1 https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it
           
-          echo "Last commit was ${DAYS_SINCE_COMMIT} days ago"
-          
-          # Check if main branch changed in the last 30 days
-          REBUILD_NEEDED=false
-          
-          if [ $DAYS_SINCE_COMMIT -lt 30 ]; then
-            echo "Main branch has recent changes (within 30 days)"
-            REBUILD_NEEDED=true
+          # Try to detect version from repository
+          # Method 1: Check for VERSION file
+          if [ -f /tmp/solve-it/VERSION ]; then
+            SOLVEIT_VERSION=$(cat /tmp/solve-it/VERSION | tr -d '\n')
+            echo "Detected from VERSION file: ${SOLVEIT_VERSION}"
+          # Method 2: Get latest git tag
+          elif cd /tmp/solve-it && git describe --tags --abbrev=0 2>/dev/null; then
+            SOLVEIT_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+            echo "Detected from git tag: ${SOLVEIT_VERSION}"
+          # Method 3: Use date-based version from latest commit
+          else
+            SOLVEIT_VERSION=$(cd /tmp/solve-it && git log -1 --format=%cd --date=format:%Y.%m)
+            echo "Detected from commit date: ${SOLVEIT_VERSION}"
           fi
           
-          # Check if SOLVE-IT repository has new releases
-          echo "Checking SOLVE-IT repository for updates..."
+          # Fallback if detection fails
+          if [ -z "$SOLVEIT_VERSION" ]; then
+            SOLVEIT_VERSION="2025.10"
+            echo "::warning::Could not detect SOLVE-IT version, using fallback: ${SOLVEIT_VERSION}"
+          fi
           
-          SOLVEIT_LATEST=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // "none"')
+          echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
+          echo "::notice::Latest SOLVE-IT version: ${SOLVEIT_VERSION}"
+      
+      - name: Get latest published Docker image version
+        id: published
+        run: |
+          # Get all tags from Docker Hub
+          echo "Fetching tags from Docker Hub..."
           
-          if [ "$SOLVEIT_LATEST" != "none" ]; then
-            SOLVEIT_RELEASE_DATE=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.published_at')
-            SOLVEIT_RELEASE_TIMESTAMP=$(date -d "$SOLVEIT_RELEASE_DATE" +%s 2>/dev/null || echo "0")
+          # Get tags following our version convention: v{SOLVEIT}-{MAJOR}.{MINOR}.{PATCH}
+          DOCKER_TAGS=$(curl -s "https://hub.docker.com/v2/repositories/${{ env.DOCKER_REPO }}/tags/?page_size=100" | jq -r '.results[].name' | grep -E '^v[0-9]{4}\.[0-9]{2}-[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          
+          if [ -z "$DOCKER_TAGS" ]; then
+            echo "::warning::No published versions found following convention v{YEAR.MONTH}-{MAJOR}.{MINOR}.{PATCH}"
+            echo "published_version=none" >> $GITHUB_OUTPUT
+            echo "published_solveit=none" >> $GITHUB_OUTPUT
+            echo "published_mcp=0.0.0" >> $GITHUB_OUTPUT
+          else
+            LATEST_TAG=$DOCKER_TAGS
+            echo "Latest published tag: ${LATEST_TAG}"
             
-            # Check if SOLVE-IT was updated in the last 30 days
-            if [ $SOLVEIT_RELEASE_TIMESTAMP -gt 0 ]; then
-              DAYS_SINCE_SOLVEIT=$(( ($CURRENT_DATE - $SOLVEIT_RELEASE_TIMESTAMP) / 86400 ))
-              echo "SOLVE-IT latest release: $SOLVEIT_LATEST (${DAYS_SINCE_SOLVEIT} days ago)"
+            # Extract SOLVE-IT version (e.g., v2025.10-0.1.0 -> 2025.10)
+            PUBLISHED_SOLVEIT=$(echo "$LATEST_TAG" | sed -E 's/^v([0-9]{4}\.[0-9]{2})-.*/\1/')
+            
+            # Extract MCP version (e.g., v2025.10-0.1.0 -> 0.1.0)
+            PUBLISHED_MCP=$(echo "$LATEST_TAG" | sed -E 's/^v[0-9]{4}\.[0-9]{2}-(.*)/\1/')
+            
+            echo "published_version=${LATEST_TAG}" >> $GITHUB_OUTPUT
+            echo "published_solveit=${PUBLISHED_SOLVEIT}" >> $GITHUB_OUTPUT
+            echo "published_mcp=${PUBLISHED_MCP}" >> $GITHUB_OUTPUT
+            
+            echo "::notice::Published SOLVE-IT version: ${PUBLISHED_SOLVEIT}"
+            echo "::notice::Published MCP version: ${PUBLISHED_MCP}"
+          fi
+      
+      - name: Compare versions and decide
+        id: compare
+        run: |
+          SOLVEIT_LATEST="${{ steps.detect.outputs.solveit_version }}"
+          SOLVEIT_PUBLISHED="${{ steps.published.outputs.published_solveit }}"
+          MCP_PUBLISHED="${{ steps.published.outputs.published_mcp }}"
+          
+          REBUILD=false
+          REASON=""
+          
+          # Case 1: No published version exists
+          if [ "$SOLVEIT_PUBLISHED" = "none" ]; then
+            REBUILD=true
+            REASON="No published version found - creating initial release"
+            NEW_TAG="v${SOLVEIT_LATEST}-0.1.0"
+            MCP_PATCH="0.1.0"
+          
+          # Case 2: SOLVE-IT version is newer
+          elif [ "$SOLVEIT_LATEST" != "$SOLVEIT_PUBLISHED" ]; then
+            REBUILD=true
+            REASON="SOLVE-IT version updated: ${SOLVEIT_PUBLISHED} → ${SOLVEIT_LATEST}"
+            NEW_TAG="v${SOLVEIT_LATEST}-0.1.0"
+            MCP_PATCH="0.1.0"
+          
+          # Case 3: SOLVE-IT same, but create patch for monthly security updates
+          else
+            # Check if main branch has commits since last month
+            LAST_MONTH=$(date -d '1 month ago' +%s)
+            RECENT_COMMITS=$(git log --since="@${LAST_MONTH}" --oneline origin/main | wc -l)
+            
+            if [ "$RECENT_COMMITS" -gt 0 ]; then
+              REBUILD=true
+              REASON="Security/dependency updates (${RECENT_COMMITS} commits in last month)"
               
-              if [ $DAYS_SINCE_SOLVEIT -lt 30 ]; then
-                echo "SOLVE-IT has recent updates (within 30 days)"
-                REBUILD_NEEDED=true
-              fi
-            fi
-          else
-            echo "No SOLVE-IT releases found, checking commits instead..."
-            
-            # Fallback: Check last commit date on SOLVE-IT main branch
-            SOLVEIT_COMMIT_DATE=$(git ls-remote https://github.com/SOLVE-IT-DF/solve-it.git HEAD | cut -f1)
-            if [ -n "$SOLVEIT_COMMIT_DATE" ]; then
-              echo "SOLVE-IT repository has activity"
-              REBUILD_NEEDED=true
+              # Increment patch version (e.g., 0.1.0 -> 0.1.1)
+              MAJOR=$(echo "$MCP_PUBLISHED" | cut -d. -f1)
+              MINOR=$(echo "$MCP_PUBLISHED" | cut -d. -f2)
+              PATCH=$(echo "$MCP_PUBLISHED" | cut -d. -f3)
+              NEW_PATCH=$((PATCH + 1))
+              
+              MCP_PATCH="${MAJOR}.${MINOR}.${NEW_PATCH}"
+              NEW_TAG="v${SOLVEIT_LATEST}-${MCP_PATCH}"
+            else
+              REBUILD=false
+              REASON="No changes detected - skipping rebuild"
             fi
           fi
           
-          # Set output
-          if [ "$REBUILD_NEEDED" = true ]; then
-            echo "rebuild=true" >> $GITHUB_OUTPUT
-            echo "✅ Rebuild needed: Changes detected in main branch or SOLVE-IT dataset"
+          # Output results
+          echo "rebuild=${REBUILD}" >> $GITHUB_OUTPUT
+          echo "new_tag=${NEW_TAG}" >> $GITHUB_OUTPUT
+          echo "mcp_patch=${MCP_PATCH}" >> $GITHUB_OUTPUT
+          echo "reason=${REASON}" >> $GITHUB_OUTPUT
+          
+          # Log decision
+          if [ "$REBUILD" = true ]; then
+            echo "::notice::✅ Rebuild needed: ${REASON}"
+            echo "::notice::New tag will be: ${NEW_TAG}"
           else
-            echo "rebuild=false" >> $GITHUB_OUTPUT
-            echo "⏭️  Skipping rebuild: No changes in the last 30 days"
+            echo "::notice::⏭️ ${REASON}"
           fi
-      
-      - name: Trigger rebuild
-        if: steps.check.outputs.rebuild == 'true'
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          event-type: monthly-rebuild
-      
-      - name: Build and push
-        if: steps.check.outputs.rebuild == 'true'
-        uses: ./.github/workflows/docker-publish.yml
-        with:
-          tag: 'monthly-rebuild'
       
       - name: Create summary
         if: always()
         run: |
           echo "## Monthly Rebuild Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ steps.check.outputs.rebuild }}" = "true" ]; then
-            echo "✅ **Rebuild triggered**" >> $GITHUB_STEP_SUMMARY
+          echo "### Version Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Current | Latest Available |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|---------|------------------|" >> $GITHUB_STEP_SUMMARY
+          echo "| SOLVE-IT | ${{ steps.published.outputs.published_solveit }} | ${{ steps.detect.outputs.solveit_version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP Server | ${{ steps.published.outputs.published_mcp }} | ${{ steps.compare.outputs.mcp_patch }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.compare.outputs.rebuild }}" = "true" ]; then
+            echo "### ✅ Rebuild Triggered" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Changes detected in main branch or SOLVE-IT dataset within the last 30 days." >> $GITHUB_STEP_SUMMARY
+            echo "**Reason:** ${{ steps.compare.outputs.reason }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**New version tag:** \`${{ steps.compare.outputs.new_tag }}\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⏭️ **Rebuild skipped**" >> $GITHUB_STEP_SUMMARY
+            echo "### ⏭️ Rebuild Skipped" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "No changes detected in the last 30 days. Image is still fresh." >> $GITHUB_STEP_SUMMARY
+            echo "**Reason:** ${{ steps.compare.outputs.reason }}" >> $GITHUB_STEP_SUMMARY
           fi
           
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Next scheduled check:** $(date -d 'first day of next month' +%Y-%m-%d)" >> $GITHUB_STEP_SUMMARY
+  
+  # Call the main docker-publish workflow if rebuild is needed
+  build-publish:
+    name: Build and Publish
+    needs: check-versions
+    if: needs.check-versions.outputs.rebuild-needed == 'true'
+    uses: ./.github/workflows/docker-publish.yml
+    secrets: inherit
+    with:
+      solveit_version: ${{ needs.check-versions.outputs.solveit-version }}
+      release_tag: ${{ needs.check-versions.outputs.new-tag }}
