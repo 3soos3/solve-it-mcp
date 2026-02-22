@@ -42,23 +42,23 @@ Integration:
 """
 
 from __future__ import annotations
-from typing import Optional, Tuple, Any
+
 import logging
 
 # Conditional imports for graceful degradation
 try:
-    from opentelemetry import trace, metrics
-    from opentelemetry.sdk.trace import TracerProvider
-    from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry import metrics, trace
     from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-    from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
-    from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatioBased
-    
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
     # Auto-instrumentation imports
     from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.resources import SERVICE_NAME, SERVICE_VERSION, Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.sdk.trace.sampling import ParentBasedTraceIdRatioBased
     try:
         from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
         HTTPX_INSTRUMENTATION_AVAILABLE = True
@@ -79,7 +79,6 @@ except ImportError:
 
 # Import configuration (always available)
 from config import OpenTelemetryConfig
-
 
 # Module-level logger
 logger = logging.getLogger(__name__)
@@ -154,10 +153,10 @@ class TelemetryManager:
             >>> manager = TelemetryManager(config.otel)
         """
         self.config = config
-        self.tracer: Optional[trace.Tracer] = None
-        self.meter: Optional[metrics.Meter] = None
+        self.tracer: trace.Tracer | None = None
+        self.meter: metrics.Meter | None = None
     
-    def configure(self) -> Tuple[trace.Tracer, metrics.Meter]:
+    def configure(self) -> tuple[trace.Tracer, metrics.Meter]:
         """Configure OpenTelemetry with all providers and exporters.
         
         This method performs complete OpenTelemetry setup including:
@@ -505,7 +504,7 @@ class TelemetryManager:
         else:
             logger.debug("Logging instrumentation not available (package not installed)")
     
-    def _get_noop_telemetry(self) -> Tuple[trace.Tracer, metrics.Meter]:
+    def _get_noop_telemetry(self) -> tuple[trace.Tracer, metrics.Meter]:
         """Get no-op tracer and meter instances.
         
         Returns no-op (no-operation) tracer and meter instances that

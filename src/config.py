@@ -30,9 +30,10 @@ Environment Variables:
     CORS_ORIGINS: Comma-separated list of allowed CORS origins
 """
 
-from pydantic import BaseModel, Field
-from typing import List, Literal, Optional
 import os
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class CORSConfig(BaseModel):
@@ -69,19 +70,19 @@ class CORSConfig(BaseModel):
         This prevents unauthorized web applications from accessing your server.
     """
     
-    allowed_origins: List[str] = Field(
+    allowed_origins: list[str] = Field(
         default_factory=lambda: os.getenv("CORS_ORIGINS", "*").split(","),
         description="List of origins allowed to make cross-origin requests"
     )
-    allowed_methods: List[str] = Field(
+    allowed_methods: list[str] = Field(
         default=["GET", "POST", "DELETE", "OPTIONS"],
         description="HTTP methods allowed in CORS requests"
     )
-    allowed_headers: List[str] = Field(
+    allowed_headers: list[str] = Field(
         default=["*"],
         description="Headers allowed in CORS requests"
     )
-    expose_headers: List[str] = Field(
+    expose_headers: list[str] = Field(
         default=["Mcp-Session-Id", "Mcp-Protocol-Version"],
         description="MCP-specific headers exposed to clients"
     )

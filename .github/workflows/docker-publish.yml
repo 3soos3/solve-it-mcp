@@ -196,6 +196,7 @@ jobs:
       - name: Run Trivy vulnerability scanner (table output)
         uses: aquasecurity/trivy-action@master
         with:
+          scan-type: 'image'
           input: '/tmp/image-${{ steps.platform.outputs.tag }}.tar'
           format: 'table'
           severity: 'CRITICAL,HIGH'
@@ -207,6 +208,7 @@ jobs:
       - name: Run Trivy vulnerability scanner (SARIF output)
         uses: aquasecurity/trivy-action@master
         with:
+          scan-type: 'image'
           input: '/tmp/image-${{ steps.platform.outputs.tag }}.tar'
           format: 'sarif'
           output: 'trivy-${{ steps.platform.outputs.tag }}.sarif'

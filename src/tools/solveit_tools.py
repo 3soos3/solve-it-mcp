@@ -1,7 +1,6 @@
 """SOLVE-IT MCP Tools - Core tools for accessing the SOLVE-IT knowledge base."""
 
 import json
-from typing import Any, Dict, List, Optional
 
 from pydantic import Field
 
@@ -56,7 +55,7 @@ class GetDatabaseDescriptionTool(SolveItBaseTool[GetDatabaseDescriptionParams]):
 class SearchParams(ToolParams):
     """Parameters for search tool."""
     keywords: str = Field(description="Keywords to search for. Use quotes for exact phrases.")
-    item_types: Optional[List[str]] = Field(
+    item_types: list[str] | None = Field(
         default=None,
         description="Types of items to search ('techniques', 'weaknesses', 'mitigations'). If None, searches all types."
     )

@@ -37,7 +37,6 @@ Integration with OpenTelemetry:
 
 import contextvars
 import uuid
-from typing import Dict, Optional
 
 # Conditional import for OpenTelemetry (graceful degradation if not available)
 try:
@@ -49,7 +48,7 @@ except ImportError:
 
 # Context variable for async-safe correlation ID propagation
 # This automatically handles propagation across asyncio task boundaries
-correlation_id_var: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+correlation_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     'correlation_id',
     default=None
 )
@@ -252,7 +251,7 @@ class CorrelationContext:
         return cid
     
     @staticmethod
-    def get_trace_context() -> Dict[str, str]:
+    def get_trace_context() -> dict[str, str]:
         """Extract complete trace context for structured logging.
         
         Retrieves OpenTelemetry trace and span IDs along with the correlation
@@ -315,7 +314,7 @@ class CorrelationContext:
             to link logs directly to distributed traces, enabling seamless
             navigation from log entries to their associated trace spans.
         """
-        result: Dict[str, str] = {}
+        result: dict[str, str] = {}
         
         # Always include correlation ID
         result["correlation_id"] = CorrelationContext.get_correlation_id()

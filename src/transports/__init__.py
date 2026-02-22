@@ -32,7 +32,7 @@ except ImportError:
 
 
 __all__ = [
-    "run_stdio_server",
-    "HTTPTransportManager",
     "HTTP_AVAILABLE",
+    "HTTPTransportManager",
+    "run_stdio_server",
 ]

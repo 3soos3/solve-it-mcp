@@ -47,19 +47,18 @@ Security:
     - Rate limiting can be added via middleware
 """
 
-from typing import Any, Optional
 import json
+from typing import Any
 import uuid
-import logging
 
 # ASGI framework imports
 try:
     from starlette.applications import Starlette
-    from starlette.routing import Route
     from starlette.middleware import Middleware
     from starlette.middleware.cors import CORSMiddleware
     from starlette.requests import Request
-    from starlette.responses import Response, StreamingResponse, JSONResponse
+    from starlette.responses import JSONResponse, Response, StreamingResponse
+    from starlette.routing import Route
     import uvicorn
     STARLETTE_AVAILABLE = True
 except ImportError:
@@ -77,7 +76,6 @@ except ImportError:
 
 from config import HTTPConfig
 from utils.logging import get_logger
-
 
 # Module-level logger
 logger = get_logger(__name__)
@@ -350,7 +348,7 @@ class HTTPTransportManager:
             session_id = f"http_{uuid.uuid4().hex[:12]}"
         
         logger.info(
-            f"JSON request received",
+            "JSON request received",
             extra={
                 "session_id": session_id,
                 "method": request.method,
@@ -360,7 +358,7 @@ class HTTPTransportManager:
         
         try:
             # Parse request body
-            body = await request.body()
+            await request.body()
             
             # TODO: Integrate with MCP server
             # For now, return a placeholder response
@@ -377,7 +375,7 @@ class HTTPTransportManager:
             }
             
             logger.debug(
-                f"JSON request processed successfully",
+                "JSON request processed successfully",
                 extra={"session_id": session_id}
             )
             
@@ -415,7 +413,7 @@ class HTTPTransportManager:
                     "jsonrpc": "2.0",
                     "error": {
                         "code": -32603,
-                        "message": f"Internal error: {str(e)}"
+                        "message": f"Internal error: {e!s}"
                     },
                     "id": None
                 },
@@ -502,7 +500,7 @@ class HTTPTransportManager:
             session_id = f"sse_{uuid.uuid4().hex[:12]}"
         
         logger.info(
-            f"SSE request received",
+            "SSE request received",
             extra={"session_id": session_id}
         )
         
@@ -525,7 +523,7 @@ class HTTPTransportManager:
                 yield f"data: {json.dumps({'type': 'status', 'message': 'SSE transport placeholder'})}\n\n"
                 
                 logger.debug(
-                    f"SSE stream established",
+                    "SSE stream established",
                     extra={"session_id": session_id}
                 )
                 

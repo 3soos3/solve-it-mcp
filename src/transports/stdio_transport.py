@@ -24,22 +24,20 @@ Integration:
     - Custom process-based integrations
 """
 
-import logging
 import traceback
 from typing import Any
 
 # MCP SDK imports
 try:
-    import mcp.server.stdio
     from mcp.server.lowlevel import NotificationOptions, Server
     from mcp.server.models import InitializationOptions
+    import mcp.server.stdio
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
     Server = Any
 
 from utils.logging import get_logger
-
 
 # Module-level logger
 logger = get_logger(__name__)

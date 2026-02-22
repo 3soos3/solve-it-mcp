@@ -15,25 +15,23 @@ Features:
 
 import argparse
 import asyncio
-import os
+from contextlib import nullcontext
 import sys
 import time
+from typing import Any
 import uuid
-from contextlib import nullcontext
-from typing import Any, Dict
 
+from mcp.server.lowlevel import Server
 import mcp.types as types
-from mcp.server.lowlevel import NotificationOptions, Server
-from mcp.server.models import InitializationOptions
 
 # Configuration and observability
 from config import load_config
-from utils.telemetry import TelemetryManager
-from utils.metrics import MCPMetrics
-from utils.correlation import CorrelationContext
 
 # Transport modules
-from transports import run_stdio_server, HTTPTransportManager, HTTP_AVAILABLE
+from transports import HTTP_AVAILABLE, HTTPTransportManager, run_stdio_server
+from utils.correlation import CorrelationContext
+from utils.metrics import MCPMetrics
+from utils.telemetry import TelemetryManager
 
 # OpenTelemetry (conditional import)
 try:
@@ -45,35 +43,35 @@ except ImportError:
 
 from tools.base import BaseTool
 from tools.solveit_tools import (
-    GetDatabaseDescriptionTool,
-    SearchTool,
-    GetTechniqueDetailsTool,
-    GetWeaknessDetailsTool,
-    GetMitigationDetailsTool,
-    GetWeaknessesForTechniqueTool,
-    GetMitigationsForWeaknessTool,
-    # Reverse Relationships
-    GetTechniquesForWeaknessTool,
-    GetWeaknessesForMitigationTool,
-    GetTechniquesForMitigationTool,
-    # Objective/Mapping Management
-    ListObjectivesTool,
-    GetTechniquesForObjectiveTool,
-    ListAvailableMappingsTool,
-    LoadObjectiveMappingTool,
-    # Bulk Retrieval - Concise Format
-    GetAllTechniquesWithNameAndIdTool,
-    GetAllWeaknessesWithNameAndIdTool,
+    GetAllMitigationsWithFullDetailTool,
     GetAllMitigationsWithNameAndIdTool,
     # Bulk Retrieval - Full Detail Format
     GetAllTechniquesWithFullDetailTool,
+    # Bulk Retrieval - Concise Format
+    GetAllTechniquesWithNameAndIdTool,
     GetAllWeaknessesWithFullDetailTool,
-    GetAllMitigationsWithFullDetailTool,
+    GetAllWeaknessesWithNameAndIdTool,
+    GetDatabaseDescriptionTool,
+    GetMitigationDetailsTool,
+    GetMitigationsForWeaknessTool,
+    GetTechniqueDetailsTool,
+    GetTechniquesForMitigationTool,
+    GetTechniquesForObjectiveTool,
+    # Reverse Relationships
+    GetTechniquesForWeaknessTool,
+    GetWeaknessDetailsTool,
+    GetWeaknessesForMitigationTool,
+    GetWeaknessesForTechniqueTool,
+    ListAvailableMappingsTool,
+    # Objective/Mapping Management
+    ListObjectivesTool,
+    LoadObjectiveMappingTool,
+    SearchTool,
 )
-from utils.logging import configure_logging, get_logger
-from utils.security_middleware import SecurityMiddleware, SecurityError
-from utils.shared_security import SharedSecurityConfig
 from utils.knowledge_base_manager import SharedKnowledgeBase
+from utils.logging import configure_logging, get_logger
+from utils.security_middleware import SecurityError, SecurityMiddleware
+from utils.shared_security import SharedSecurityConfig
 
 
 def _noop_context():
@@ -250,7 +248,7 @@ async def main() -> None:
             tool.set_shared_knowledge_base(shared_kb, data_path)
 
         # Auto-generate tool registry and metadata
-        tool_registry: Dict[str, BaseTool[Any]] = {tool.name: tool for tool in tools}
+        tool_registry: dict[str, BaseTool[Any]] = {tool.name: tool for tool in tools}
         available_tools: list[str] = [tool.name for tool in tools]
 
         logger.info(f"Successfully configured {len(tools)} SOLVE-IT tools with shared architecture: {available_tools}")
@@ -451,7 +449,7 @@ async def main() -> None:
             )
 
             # Convert SecurityError to ValueError for MCP protocol
-            raise ValueError(f"Security policy violation: {str(e)}")
+            raise ValueError(f"Security policy violation: {e!s}")
 
         except Exception as e:
             # Calculate time even for failures

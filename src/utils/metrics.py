@@ -35,9 +35,9 @@ Integration:
     - Grafana (via Prometheus data source)
 """
 
-from typing import Dict, Any, Optional
-import os
 import logging
+import os
+from typing import Any
 
 # Conditional import for graceful degradation
 try:
@@ -146,7 +146,7 @@ class MCPMetrics:
         instruments that can be safely used without recording data.
     """
     
-    def __init__(self, meter: Optional[metrics.Meter] = None):
+    def __init__(self, meter: metrics.Meter | None = None):
         """Initialize MCP metrics with OpenTelemetry meter.
         
         Args:
@@ -460,15 +460,15 @@ class MCPMetrics:
             >>> metrics.tool_invocations.add(1)  # No-op
         """
         class NoOpCounter:
-            def add(self, amount: float, attributes: Optional[Dict[str, Any]] = None) -> None:
+            def add(self, amount: float, attributes: dict[str, Any] | None = None) -> None:
                 pass
         
         class NoOpHistogram:
-            def record(self, amount: float, attributes: Optional[Dict[str, Any]] = None) -> None:
+            def record(self, amount: float, attributes: dict[str, Any] | None = None) -> None:
                 pass
         
         class NoOpUpDownCounter:
-            def add(self, amount: float, attributes: Optional[Dict[str, Any]] = None) -> None:
+            def add(self, amount: float, attributes: dict[str, Any] | None = None) -> None:
                 pass
         
         self.tool_invocations = NoOpCounter()
@@ -490,7 +490,7 @@ class MCPMetrics:
         input_size: int,
         output_size: int,
         error: bool = False,
-        attributes: Optional[Dict[str, Any]] = None
+        attributes: dict[str, Any] | None = None
     ) -> None:
         """Record comprehensive metrics for a tool invocation.
         

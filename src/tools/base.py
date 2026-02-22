@@ -109,13 +109,13 @@ the parameter type you define, with full IDE support and type checking.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, Type, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
 from utils.errors import ToolError
 from utils.logging import get_logger
-from utils.security import sanitize_input, validate_tool_security_config, SecurityConfigError
+from utils.security import SecurityConfigError, sanitize_input, validate_tool_security_config
 
 
 class ToolParams(BaseModel):
@@ -247,7 +247,7 @@ class BaseTool(Generic[P], ABC):
     # Required attributes
     name: str
     description: str
-    params_model: Type[P]
+    params_model: type[P]
     
     # Layer 2 Security Configuration (with safe defaults)
     execution_timeout: float = 30.0        # Default 30 second timeout
@@ -277,7 +277,7 @@ class BaseTool(Generic[P], ABC):
             raise ValueError(
                 "Tool must define a 'Params' class attribute (parameter model)"
             )
-        self.params_model = getattr(self, "Params")
+        self.params_model = self.Params
 
         # Auto-inject standardized logger
         logger_name = f"{self.__class__.__module__}.{self.__class__.__name__}"
@@ -294,7 +294,7 @@ class BaseTool(Generic[P], ABC):
         # Log tool initialization
         self.logger.debug(f"Initialized tool: {self.name}")
 
-    def get_schema(self) -> Dict[str, Any]:
+    def get_schema(self) -> dict[str, Any]:
         """Return JSON schema for this tool's parameters.
 
         This schema is used by the MCP protocol to validate parameters
@@ -305,7 +305,7 @@ class BaseTool(Generic[P], ABC):
         """
         return self.params_model.model_json_schema()
 
-    def validate_params(self, params: Dict[str, Any]) -> P:
+    def validate_params(self, params: dict[str, Any]) -> P:
         """Validate and convert parameter dictionary to typed model.
 
         This is where Layer 2 security features are applied:
@@ -329,7 +329,7 @@ class BaseTool(Generic[P], ABC):
         # Standard Pydantic validation
         return self.params_model(**secured_params)
     
-    def _apply_layer2_security(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_layer2_security(self, params: dict[str, Any]) -> dict[str, Any]:
         """Apply Layer 2 security features to parameters.
         
         Args:
@@ -395,7 +395,7 @@ class BaseTool(Generic[P], ABC):
             # Return non-string types unchanged
             return obj
     
-    def _validate_paths_in_params(self, params: Dict[str, Any]) -> None:
+    def _validate_paths_in_params(self, params: dict[str, Any]) -> None:
         """Validate file paths in parameters against allowed paths.
         
         Args:
@@ -404,13 +404,11 @@ class BaseTool(Generic[P], ABC):
         Raises:
             ToolError: If path validation fails.
         """
-        from utils.security import validate_path
-        import asyncio
         from pathlib import Path
         
         # Get parameter model fields to identify path parameters
         if hasattr(self.params_model, 'model_fields'):
-            for field_name, field_info in self.params_model.model_fields.items():
+            for field_name, _field_info in self.params_model.model_fields.items():
                 if field_name in params:
                     value = params[field_name]
                     
@@ -454,7 +452,7 @@ class BaseTool(Generic[P], ABC):
                                     f"Path validation failed for {field_name}: {e}",
                                     extra={"tool_name": self.name, "field_name": field_name, "path": value}
                                 )
-                                raise ToolError(f"Invalid path in {field_name}: {str(e)}")
+                                raise ToolError(f"Invalid path in {field_name}: {e!s}")
 
     @abstractmethod
     async def invoke(self, params: P) -> Any:
@@ -475,4 +473,4 @@ class BaseTool(Generic[P], ABC):
         """
 
 
-__all__ = ["BaseTool", "ToolParams", "ToolError"]
+__all__ = ["BaseTool", "ToolError", "ToolParams"]
