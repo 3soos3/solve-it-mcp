@@ -1,5 +1,6 @@
 # Branch Protection & CI Gating
 
+
 This document describes the strict CI gating strategy implemented for the `solve-it-mcp` repository to ensure code quality and prevent broken releases for forensic software.
 
 ---
