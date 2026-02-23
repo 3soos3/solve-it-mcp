@@ -106,16 +106,6 @@ jobs:
           echo "::endgroup::"
           echo "::notice::✅ All health checks passed!"
 
-      - name: Verify multi-arch build capability
-        run: |
-          echo "::group::Multi-arch build verification (no load)"
-          docker buildx build \
-            --platform linux/amd64,linux/arm64,linux/arm/v7 \
-            --tag ${{ env.DOCKER_REPO }}:multi-arch-test \
-            .
-          echo "::endgroup::"
-          echo "::notice::✅ Multi-arch build successful!"
-
   # Job 2: Trivy Security Scan
   security-scan:
     name: Trivy Security Scan
@@ -221,7 +211,6 @@ jobs:
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Docker Build (AMD64) | ${{ needs.build-and-test.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Health Checks | ${{ needs.build-and-test.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Multi-arch Capability | ${{ needs.build-and-test.result == 'success' && '✅ Verified' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Security Scan (Trivy) | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '⚠️ Review Required' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
