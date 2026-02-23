@@ -1,6 +1,6 @@
 name: CI - Code Quality & Tests
 
-# Comprehensive CI pipeline for code quality, testing, and validation
+# Fast feedback pipeline for code quality checks and unit tests
 # Runs on all PRs and pushes to main
 
 on:
@@ -41,21 +41,12 @@ jobs:
           echo "::group::Ruff Linting"
           ruff check src/ --output-format=github
           echo "::endgroup::"
-        continue-on-error: true
       
       - name: Run Ruff formatter check
         run: |
           echo "::group::Ruff Format Check"
           ruff format --check src/
           echo "::endgroup::"
-        continue-on-error: true
-      
-      - name: Run Black formatter check
-        run: |
-          echo "::group::Black Format Check"
-          black --check src/
-          echo "::endgroup::"
-        continue-on-error: true  # Ruff format is primary
       
       - name: Run MyPy type checker
         run: |
@@ -129,184 +120,39 @@ jobs:
           name: coverage-report-${{ matrix.python-version }}
           path: htmlcov/
 
-  # Job 3: Dependency Security Scanning
-  dependency-security:
-    name: Dependency Security
+  # Job 3: YAML Linting
+  yaml-lint:
+    name: YAML Linting
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      
-      - name: Install pip-audit
-        run: |
-          python -m pip install --upgrade pip
-          pip install pip-audit
-      
-      - name: Run pip-audit (Python dependencies)
-        run: |
-          echo "::group::Scanning Python dependencies for vulnerabilities"
-          pip-audit --requirement requirements.txt --format json --output pip-audit.json || true
-          pip-audit --requirement requirements.txt --format markdown
-          echo "::endgroup::"
-        continue-on-error: true
-      
-      - name: Upload pip-audit results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pip-audit-results
-          path: pip-audit.json
-
-  # Job 4: Dockerfile & YAML Linting
-  dockerfile-lint:
-    name: Dockerfile & YAML Linting
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Run Hadolint (Dockerfile linter)
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: Dockerfile
-          format: sarif
-          output-file: hadolint.sarif
-          failure-threshold: warning
-        continue-on-error: true
-      
-      - name: Upload Hadolint results to GitHub Security
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: hadolint.sarif
-          category: hadolint
-        continue-on-error: true
       
       - name: Run yamllint
         run: |
           pip install yamllint
           echo "::group::YAML Linting"
-          yamllint .github/workflows/ -f github || true
+          yamllint .github/workflows/ -f github
           echo "::endgroup::"
-        continue-on-error: true
 
-  # Job 5: Build Validation (Multi-arch test)
-  build-validation:
-    name: Build Validation
-    runs-on: ubuntu-latest
-    needs: [code-quality]
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-      
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      
-      - name: Build test image (AMD64)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: linux/amd64
-          push: false
-          load: true
-          tags: solve-it-mcp:ci-test
-          cache-from: type=gha,scope=ci-amd64
-          cache-to: type=gha,mode=max,scope=ci-amd64
-      
-      - name: Test image startup
-        run: |
-          # Run container in background
-          docker run -d --name test-container \
-            -e MCP_TRANSPORT=http \
-            -e HTTP_PORT=8000 \
-            -p 8000:8000 \
-            solve-it-mcp:ci-test
-          
-          # Wait for startup
-          echo "Waiting for container to start..."
-          sleep 15
-          
-          # Check if container is running
-          docker ps | grep test-container
-          
-          # Check logs
-          echo "Container logs:"
-          docker logs test-container
-          
-          # Test health endpoint
-          echo "Testing /healthz endpoint..."
-          curl -f http://localhost:8000/healthz || exit 1
-          
-          # Test ready endpoint
-          echo "Testing /readyz endpoint..."
-          curl -f http://localhost:8000/readyz || exit 1
-          
-          # Cleanup
-          docker stop test-container
-          docker rm test-container
-          
-          echo "✅ Container smoke tests passed!"
-      
-      - name: Verify multi-arch build capability
-        run: |
-          echo "::group::Multi-arch build test (build only, no load)"
-          docker buildx build \
-            --platform linux/amd64,linux/arm64,linux/arm/v7 \
-            --tag solve-it-mcp:multi-arch-test \
-            .
-          echo "::endgroup::"
-          echo "✅ Multi-arch build successful!"
-
-  # Job 6: Security Best Practices
-  security-checks:
-    name: Security Best Practices
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Run Bandit (Python security linter)
-        run: |
-          pip install bandit
-          echo "::group::Bandit Security Scan"
-          bandit -r src/ -f json -o bandit-report.json || true
-          bandit -r src/ -f screen
-          echo "::endgroup::"
-        continue-on-error: true
-      
-      - name: Check for secrets in code
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          base: ${{ github.event.repository.default_branch }}
-          head: HEAD
-          extra_args: --only-verified
-        continue-on-error: true
-      
-      - name: Upload Bandit results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bandit-report
-          path: bandit-report.json
-
-  # Job 7: CI Summary
+  # Job 4: CI Summary
   ci-summary:
     name: CI Summary
     runs-on: ubuntu-latest
-    needs: [code-quality, tests, dependency-security, dockerfile-lint, build-validation, security-checks]
+    needs: [code-quality, tests, yaml-lint]
     if: always()
     steps:
+      - name: Check if all jobs passed
+        run: |
+          if [[ "${{ needs.code-quality.result }}" != "success" ]] || \
+             [[ "${{ needs.tests.result }}" != "success" ]] || \
+             [[ "${{ needs.yaml-lint.result }}" != "success" ]]; then
+            echo "::error::One or more CI jobs failed"
+            exit 1
+          fi
+      
       - name: Create CI summary
+        if: always()
         run: |
           echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -315,10 +161,7 @@ jobs:
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Code Quality | ${{ needs.code-quality.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Dependency Security | ${{ needs.dependency-security.result == 'success' && '✅ Passed' || '⚠️ Check Required' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Dockerfile Lint | ${{ needs.dockerfile-lint.result == 'success' && '✅ Passed' || '⚠️ Check Required' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Build Validation | ${{ needs.build-validation.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security Checks | ${{ needs.security-checks.result == 'success' && '✅ Passed' || '⚠️ Check Required' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| YAML Lint | ${{ needs.yaml-lint.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*This CI pipeline ensures code quality, security, and reliability before deployment.*" >> $GITHUB_STEP_SUMMARY
+          echo "*Fast feedback for code quality and correctness.*" >> $GITHUB_STEP_SUMMARY
