@@ -132,19 +132,19 @@ jobs:
           title: "chore: Update NOTICE file with dependency licenses"
           body: |
             ## Automated NOTICE File Update
-            
+
             This PR updates the NOTICE file with current dependency licenses.
-            
+
             **Triggered by**: ${{ github.event_name }}
             **Generated**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
-            
+
             ### Changes
             - Updated NOTICE file with latest dependency licenses
-            
+
             ### Review Checklist
             - [ ] No new GPL/AGPL licenses introduced
             - [ ] All dependencies properly attributed
-            
+
             This is an automated PR. Please review and merge if everything looks correct.
           labels: |
             automated
