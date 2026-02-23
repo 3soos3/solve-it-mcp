@@ -46,9 +46,31 @@ docker-compose -f docker-compose.dev.yml up
 
 ## Docker Images
 
+### Available Registries
+
+Images are published to **two registries** with different purposes:
+
+#### 🐳 **Docker Hub** (Recommended for General Use)
+- **Registry**: `docker.io/3soos3/solve-it-mcp`
+- **Purpose**: Production deployment, general use
+- **Tags**: Clean list (latest, sha-xxx, version tags only)
+- **Artifacts**: NO Cosign signatures/SBOM (keeps UI clean)
+- **Pull**: `docker pull 3soos3/solve-it-mcp:latest`
+
+#### 📦 **GitHub Container Registry** (Recommended for Forensic Verification)
+- **Registry**: `ghcr.io/3soos3/solve-it-mcp`
+- **Purpose**: Forensic verification, chain-of-custody
+- **Tags**: Same as Docker Hub + Cosign artifacts
+- **Artifacts**: Cryptographic signatures (.sig) and SBOM (.sbom)
+- **Pull**: `docker pull ghcr.io/3soos3/solve-it-mcp:latest`
+
+**Which registry should I use?**
+- **Docker Hub**: 99% of users - fast pulls, clean UI
+- **GHCR**: Forensic teams needing cryptographic verification
+
 ### Image Tags
 
-Available on Docker Hub: `3soos3/solve-it-mcp`
+Both registries have the same tags:
 
 | Tag | Description | Use Case |
 |-----|-------------|----------|
@@ -56,6 +78,8 @@ Available on Docker Hub: `3soos3/solve-it-mcp`
 | `stable` | Manual stable marker | Production (manually marked as stable) |
 | `v0.2025-10-0.1.0` | Full version tag | Production (specific version) |
 | `sha-abc1234` | Git commit SHA | Reproducible builds, debugging |
+
+**Note**: GHCR also includes `.sig` and `.sbom` artifacts (hidden in Docker Hub).
 
 ### Multi-Architecture Support
 
@@ -544,6 +568,74 @@ docker run -v /path/to/secrets:/secrets:ro ...
 
 ---
 
+## Forensic Verification (GHCR Only)
+
+For forensic investigations requiring chain-of-custody and cryptographic verification, use GHCR images with Cosign.
+
+### Prerequisites
+
+Install Cosign:
+```bash
+# macOS
+brew install cosign
+
+# Linux
+curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
+chmod +x cosign-linux-amd64
+sudo mv cosign-linux-amd64 /usr/local/bin/cosign
+```
+
+### Verify Image Signature
+
+Proves the image was built by the official GitHub Actions workflow:
+
+```bash
+cosign verify ghcr.io/3soos3/solve-it-mcp:latest \
+  --certificate-identity-regexp=github \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+```
+
+**Output**:
+```json
+{
+  "payloadType": "application/vnd.dev.cosign.simplesigning.v1+json",
+  "payload": "...",
+  "signatures": [...]
+}
+```
+
+### Download SBOM
+
+See all dependencies (Software Bill of Materials):
+
+```bash
+# Download SBOM in SPDX format
+cosign download sbom ghcr.io/3soos3/solve-it-mcp:latest > sbom.spdx.json
+
+# View dependencies
+jq '.packages[] | {name: .name, version: .versionInfo, license: .licenseDeclared}' sbom.spdx.json
+```
+
+### View Build Provenance
+
+See source commit, workflow, builder identity:
+
+```bash
+cosign download attestation ghcr.io/3soos3/solve-it-mcp:latest | jq
+```
+
+**Includes**:
+- Source repository and commit SHA
+- GitHub Actions workflow that built the image
+- Build timestamp and environment
+- Cryptographic proof of authenticity
+
+### Why Not Docker Hub?
+
+Docker Hub images do **NOT** include Cosign signatures/SBOM attachments to keep the tag list clean (no `.sig`/`.sbom` clutter in UI). For forensic verification, **always use GHCR**.
+
+---
+
 ## Next Steps
 
 - **Kubernetes Deployment**: See [KUBERNETES.md](./KUBERNETES.md)
@@ -556,6 +648,7 @@ docker run -v /path/to/secrets:/secrets:ro ...
 ## Resources
 
 - **Docker Hub**: https://hub.docker.com/r/3soos3/solve-it-mcp
+- **GitHub Container Registry**: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
 - **GitHub**: https://github.com/3soos3/solve-it-mcp
 - **SOLVE-IT Dataset**: https://github.com/SOLVE-IT-DF/solve-it
 - **MCP Specification**: https://modelcontextprotocol.io
