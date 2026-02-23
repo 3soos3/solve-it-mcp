@@ -37,7 +37,7 @@ jobs:
           
           # Method 1: Check GitHub Releases API (most reliable)
           echo "Checking GitHub Releases API..."
-          SOLVEIT_VERSION=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // empty' | sed 's/^v//' | sed 's/^0\.//')
+          SOLVEIT_VERSION=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // empty' | sed 's/^v//')
           
           if [ -n "$SOLVEIT_VERSION" ]; then
             echo "::notice::Detected SOLVE-IT version from GitHub Releases: ${SOLVEIT_VERSION}"
@@ -51,18 +51,18 @@ jobs:
               echo "::notice::Detected SOLVE-IT version from VERSION file: ${SOLVEIT_VERSION}"
             # Method 3: Get latest git tag from local clone
             elif cd /tmp/solve-it && git describe --tags --abbrev=0 2>/dev/null; then
-              SOLVEIT_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+              SOLVEIT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
               echo "::notice::Detected SOLVE-IT version from git tag: ${SOLVEIT_VERSION}"
             # Method 4 (AVOID): Commit date is unreliable
             else
-              SOLVEIT_VERSION="2025.10"
+              SOLVEIT_VERSION="0.2025-10"
               echo "::warning::Could not detect SOLVE-IT version, using known stable: ${SOLVEIT_VERSION}"
             fi
           fi
           
           # Fallback if all methods fail
           if [ -z "$SOLVEIT_VERSION" ]; then
-            SOLVEIT_VERSION="2025.10"
+            SOLVEIT_VERSION="0.2025-10"
             echo "::warning::All detection methods failed, using fallback: ${SOLVEIT_VERSION}"
           fi
           
@@ -76,7 +76,7 @@ jobs:
           echo "Fetching tags from Docker Hub..."
           
           # Get tags following our version convention: v{SOLVEIT}-{MAJOR}.{MINOR}.{PATCH}
-          DOCKER_TAGS=$(curl -s "https://hub.docker.com/v2/repositories/${{ env.DOCKER_REPO }}/tags/?page_size=100" | jq -r '.results[].name' | grep -E '^v[0-9]{4}\.[0-9]{2}-[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          DOCKER_TAGS=$(curl -s "https://hub.docker.com/v2/repositories/${{ env.DOCKER_REPO }}/tags/?page_size=100" | jq -r '.results[].name' | grep -E '^v0\.[0-9]{4}-[0-9]{2}-[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
           
           if [ -z "$DOCKER_TAGS" ]; then
             echo "::warning::No published versions found following convention v{YEAR.MONTH}-{MAJOR}.{MINOR}.{PATCH}"
@@ -88,10 +88,10 @@ jobs:
             echo "Latest published tag: ${LATEST_TAG}"
             
             # Extract SOLVE-IT version (e.g., v2025.10-0.1.0 -> 2025.10)
-            PUBLISHED_SOLVEIT=$(echo "$LATEST_TAG" | sed -E 's/^v([0-9]{4}\.[0-9]{2})-.*/\1/')
+            PUBLISHED_SOLVEIT=$(echo "$LATEST_TAG" | sed -E 's/^v(0\.[0-9]{4}-[0-9]{2})-.*/\1/')
             
             # Extract MCP version (e.g., v2025.10-0.1.0 -> 0.1.0)
-            PUBLISHED_MCP=$(echo "$LATEST_TAG" | sed -E 's/^v[0-9]{4}\.[0-9]{2}-(.*)/\1/')
+            PUBLISHED_MCP=$(echo "$LATEST_TAG" | sed -E 's/^v0\.[0-9]{4}-[0-9]{2}-(.*)/\1/')
             
             echo "published_version=${LATEST_TAG}" >> $GITHUB_OUTPUT
             echo "published_solveit=${PUBLISHED_SOLVEIT}" >> $GITHUB_OUTPUT
