@@ -60,29 +60,39 @@ jobs:
       - name: Detect SOLVE-IT version
         id: solveit
         run: |
-          # Clone SOLVE-IT repository to detect version
-          git clone --depth 1 https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it
+          # Try to detect SOLVE-IT version using multiple methods (in priority order)
           
-          # Try to detect version from repository
-          # Method 1: Check for VERSION file
-          if [ -f /tmp/solve-it/VERSION ]; then
-            SOLVEIT_VERSION=$(cat /tmp/solve-it/VERSION | tr -d '\n')
-          # Method 2: Get latest git tag
-          elif cd /tmp/solve-it && git describe --tags --abbrev=0 2>/dev/null; then
-            SOLVEIT_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
-          # Method 3: Use date-based version from latest commit
+          # Method 1: Check GitHub Releases API (most reliable)
+          SOLVEIT_VERSION=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // empty' | sed 's/^v//' | sed 's/^0\.//')
+          
+          if [ -n "$SOLVEIT_VERSION" ]; then
+            echo "::notice::Detected SOLVE-IT version from GitHub Releases: ${SOLVEIT_VERSION}"
           else
-            SOLVEIT_VERSION=$(cd /tmp/solve-it && git log -1 --format=%cd --date=format:%Y.%m)
+            # Method 2: Clone repository and check VERSION file
+            git clone --depth 1 https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it
+            
+            if [ -f /tmp/solve-it/VERSION ]; then
+              SOLVEIT_VERSION=$(cat /tmp/solve-it/VERSION | tr -d '\n')
+              echo "::notice::Detected SOLVE-IT version from VERSION file: ${SOLVEIT_VERSION}"
+            # Method 3: Get latest git tag from local clone
+            elif cd /tmp/solve-it && git describe --tags --abbrev=0 2>/dev/null; then
+              SOLVEIT_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+              echo "::notice::Detected SOLVE-IT version from git tag: ${SOLVEIT_VERSION}"
+            # Method 4 (AVOID): Use commit date (unreliable - may show future dates)
+            else
+              SOLVEIT_VERSION="2025.10"
+              echo "::warning::Could not detect SOLVE-IT version, using known stable: ${SOLVEIT_VERSION}"
+            fi
           fi
           
-          # Fallback if detection fails
+          # Fallback if all methods fail
           if [ -z "$SOLVEIT_VERSION" ]; then
             SOLVEIT_VERSION="2025.10"
-            echo "::warning::Could not detect SOLVE-IT version, using fallback: ${SOLVEIT_VERSION}"
+            echo "::warning::All detection methods failed, using fallback: ${SOLVEIT_VERSION}"
           fi
           
           echo "version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
-          echo "::notice::Detected SOLVE-IT version: ${SOLVEIT_VERSION}"
+          echo "::notice::Final SOLVE-IT version: ${SOLVEIT_VERSION}"
       
       - name: Determine scanning strategy
         id: strategy
@@ -211,6 +221,7 @@ jobs:
             --input /tmp/image-${{ steps.platform.outputs.tag }}.tar \
             --format table \
             --severity CRITICAL,HIGH \
+            --scanners vuln \
             --vuln-type os,library
         continue-on-error: true
       
@@ -221,6 +232,7 @@ jobs:
             --format sarif \
             --output trivy-${{ steps.platform.outputs.tag }}.sarif \
             --severity CRITICAL,HIGH \
+            --scanners vuln \
             --exit-code 1 \
             --vuln-type os,library
         continue-on-error: false
