@@ -33,7 +33,7 @@ echo ""
 
 # Step 3: Quick build test (AMD64 only - fast)
 echo "Step 3: Building AMD64 image (native - fast)..."
-cd ~/solve_it_mcp
+cd "$(dirname "$0")"
 podman build --platform linux/amd64 -t solve-it-mcp:quick-test-amd64 -f Dockerfile . || {
     echo "❌ AMD64 build failed"
     exit 1

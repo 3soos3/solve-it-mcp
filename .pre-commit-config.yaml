@@ -64,3 +64,9 @@ repos:
       - id: bandit
         args: [-r, src/, -ll]  # Low severity and above
         exclude: ^tests/
+
+  # Gitleaks - Secret detection
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.0
+    hooks:
+      - id: gitleaks

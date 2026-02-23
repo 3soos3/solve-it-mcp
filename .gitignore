@@ -139,6 +139,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -227,3 +229,44 @@ test-*.sh
 *-test-results.md
 ALPINE_TEST_RESULTS.md
 HEALTHZ_IMPLEMENTATION_SUMMARY.md
+
+# Credentials and sensitive files
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+id_dsa*
+*.credentials
+credentials.json
+secrets.json
+auth.json
+config.json
+!docker-config.json
+!.dockerconfigjson
+
+# Personal notes
+TODO.md
+NOTES.md
+**/personal/
+**/private/
+
+# API tokens and keys (patterns)
+*api_key*
+*api-key*
+*apikey*
+*access_token*
+*access-token*
+*secret_key*
+*secret-key*
+*password*
+*passwd*
+*.token
+
+# Cloud provider credentials
+.aws/
+.azure/
+.gcp/
+credentials
+config
