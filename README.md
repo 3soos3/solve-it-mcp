@@ -40,10 +40,29 @@ This project includes automated security scanning and best practices for forensi
 ### Automated Security
 - ✅ **Vulnerability Scanning**: Trivy, Bandit, Safety, pip-audit
 - ✅ **Code Review**: All PRs require review before merge
-- ✅ **SBOM**: Software Bill of Materials for all releases
-- ✅ **Image Signing**: Cryptographic signatures on Docker images (Cosign)
+- ✅ **SBOM**: Software Bill of Materials (available on GHCR and as artifacts)
+- ✅ **Image Signing**: Cryptographic signatures on GHCR images (Cosign)
 - ✅ **License Compliance**: Automated dependency license checking
 - ✅ **OpenSSF Scorecard**: Public security rating
+
+### Forensic Verification (GHCR Images)
+
+For maximum integrity and chain-of-custody, use GHCR images with Cosign:
+
+```bash
+# Verify image signature (proves authenticity)
+cosign verify ghcr.io/3soos3/solve-it-mcp:latest \
+  --certificate-identity-regexp=github \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+
+# Download and inspect SBOM (see all dependencies)
+cosign download sbom ghcr.io/3soos3/solve-it-mcp:latest | jq
+
+# View build provenance (source commit, workflow, timestamp)
+cosign download attestation ghcr.io/3soos3/solve-it-mcp:latest | jq
+```
+
+**Note**: Docker Hub images do NOT include Cosign signatures/SBOM to keep the tag list clean.
 
 ### For Production Use
 **Important**: This is a best-effort maintained project. For critical forensic use:
@@ -57,6 +76,22 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and security policy.
 ## 🐳 Docker Quick Start
 
 **Recommended**: Use Docker for the easiest deployment experience.
+
+### Choose Your Registry
+
+**Docker Hub** (docker.io) - For general use:
+```bash
+docker pull 3soos3/solve-it-mcp:latest
+```
+
+**GitHub Container Registry** (ghcr.io) - For forensic verification:
+```bash
+docker pull ghcr.io/3soos3/solve-it-mcp:latest
+```
+
+**Which to use?**
+- **Docker Hub**: Clean tags, best for production use
+- **GHCR**: Includes cryptographic signatures and SBOM attachments for forensic verification
 
 ### Pull and Run
 
