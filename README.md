@@ -1,8 +1,12 @@
 # SOLVE-IT MCP Server
 
+[![CI - Code Quality](https://github.com/3soos3/solve-it-mcp/workflows/CI%20-%20Code%20Quality%20%26%20Tests/badge.svg)](https://github.com/3soos3/solve-it-mcp/actions/workflows/ci.yml)
+[![Security Scanning](https://github.com/3soos3/solve-it-mcp/workflows/Security%20-%20Vulnerability%20Scanning/badge.svg)](https://github.com/3soos3/solve-it-mcp/actions/workflows/security.yml)
+[![License Compliance](https://github.com/3soos3/solve-it-mcp/workflows/License%20Compliance/badge.svg)](https://github.com/3soos3/solve-it-mcp/actions/workflows/license-compliance.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/3soos3/solve-it-mcp/badge)](https://securityscorecards.dev/viewer/?uri=github.com/3soos3/solve-it-mcp)
 [![Docker Pulls](https://img.shields.io/docker/pulls/3soos3/solve-it-mcp)](https://hub.docker.com/r/3soos3/solve-it-mcp)
 [![Docker Image Size](https://img.shields.io/docker/image-size/3soos3/solve-it-mcp/latest)](https://hub.docker.com/r/3soos3/solve-it-mcp)
-[![Security Scan](https://img.shields.io/badge/security-0%20vulnerabilities-brightgreen)](https://github.com/3soos3/solve_it_mcp/security)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Production-ready MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base.**
 
@@ -28,6 +32,27 @@ SOLVE-IT provides a structured approach to digital forensics investigations thro
 - **Objectives**: Categories that organize techniques by investigation goals
 
 See the main repository: [SOLVE-IT-DF/solve-it](https://github.com/SOLVE-IT-DF/solve-it)
+
+## 🔒 Security & Compliance
+
+This project includes automated security scanning and best practices for forensic software:
+
+### Automated Security
+- ✅ **Vulnerability Scanning**: Trivy, Bandit, Safety, pip-audit
+- ✅ **Code Review**: All PRs require review before merge
+- ✅ **SBOM**: Software Bill of Materials for all releases
+- ✅ **Image Signing**: Cryptographic signatures on Docker images (Cosign)
+- ✅ **License Compliance**: Automated dependency license checking
+- ✅ **OpenSSF Scorecard**: Public security rating
+
+### For Production Use
+**Important**: This is a best-effort maintained project. For critical forensic use:
+- Perform your own security audit
+- Review all dependencies and licenses
+- Verify SBOM and image signatures
+- Consider forking and maintaining your own version
+
+See [SECURITY.md](SECURITY.md) for vulnerability reporting and security policy.
 
 ## 🐳 Docker Quick Start
 
