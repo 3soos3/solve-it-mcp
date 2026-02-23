@@ -39,7 +39,8 @@ on:
         required: true
 
 env:
-  DOCKER_REPO: 3soos3/solve-it-mcp
+  DOCKERHUB_REPO: 3soos3/solve-it-mcp
+  GHCR_REPO: ghcr.io/${{ github.repository_owner }}/solve-it-mcp
   PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
 
 jobs:
@@ -96,6 +97,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Extract metadata
         id: meta
         run: |
@@ -126,27 +134,38 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
 
-          # Build tags
-          TAGS="${{ env.DOCKER_REPO }}:sha-${GIT_COMMIT}"
+          # Build tags for BOTH registries
+          DOCKERHUB_TAGS="${{ env.DOCKERHUB_REPO }}:sha-${GIT_COMMIT}"
+          GHCR_TAGS="${{ env.GHCR_REPO }}:sha-${GIT_COMMIT}"
 
           # Add latest tag for main branch
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            TAGS="${TAGS},${{ env.DOCKER_REPO }}:latest"
+            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:latest"
+            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:latest"
           fi
 
           # Add version tag for git tags
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            TAGS="${TAGS},${{ env.DOCKER_REPO }}:v${VERSION}"
-            TAGS="${TAGS},${{ env.DOCKER_REPO }}:latest"
+            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:v${VERSION}"
+            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:latest"
+            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:v${VERSION}"
+            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:latest"
           fi
 
           # Add custom tag if provided
           if [[ -n "${{ github.event.inputs.tag }}" ]]; then
-            TAGS="${TAGS},${{ env.DOCKER_REPO }}:${{ github.event.inputs.tag }}"
+            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:${{ github.event.inputs.tag }}"
+            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:${{ github.event.inputs.tag }}"
           fi
 
-          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
-          echo "::notice::Generated tags: ${TAGS}"
+          # Combine all tags for build step
+          ALL_TAGS="${DOCKERHUB_TAGS},${GHCR_TAGS}"
+
+          echo "tags=${ALL_TAGS}" >> $GITHUB_OUTPUT
+          echo "dockerhub_tags=${DOCKERHUB_TAGS}" >> $GITHUB_OUTPUT
+          echo "ghcr_tags=${GHCR_TAGS}" >> $GITHUB_OUTPUT
+          echo "::notice::Docker Hub tags: ${DOCKERHUB_TAGS}"
+          echo "::notice::GHCR tags: ${GHCR_TAGS}"
 
       - name: Create release tag (if monthly workflow)
         if: inputs.release_tag != ''
@@ -189,7 +208,7 @@ jobs:
       - name: Generate SBOM with Syft
         run: |
           echo "::group::Generating SBOM"
-          syft ${{ env.DOCKER_REPO }}:sha-${{ steps.meta.outputs.git_commit }} \
+          syft ${{ env.DOCKERHUB_REPO }}:sha-${{ steps.meta.outputs.git_commit }} \
             -o spdx-json=sbom-spdx.json \
             -o cyclonedx-json=sbom-cyclonedx.json \
             -o syft-json=sbom-syft.json
@@ -203,40 +222,42 @@ jobs:
           path: |
             sbom-*.json
 
-      - name: Sign image with Cosign (keyless)
+      - name: Sign GHCR images with Cosign (keyless)
         env:
           COSIGN_EXPERIMENTAL: 1
         run: |
-          echo "::group::Signing Docker images"
+          echo "::group::Signing GHCR images (forensic artifacts)"
 
-          # Sign each tag
-          IFS=',' read -ra TAG_ARRAY <<< "${{ steps.meta.outputs.tags }}"
+          # Sign ONLY GHCR tags (not Docker Hub - keeps Docker Hub clean)
+          IFS=',' read -ra TAG_ARRAY <<< "${{ steps.meta.outputs.ghcr_tags }}"
           for tag in "${TAG_ARRAY[@]}"; do
             echo "Signing: ${tag}"
             cosign sign --yes ${tag}@${{ steps.build.outputs.digest }}
           done
 
           echo "::endgroup::"
-          echo "::notice::✅ Images signed with Cosign (keyless)"
+          echo "::notice::✅ GHCR images signed with Cosign (keyless)"
 
-      - name: Attach SBOM to image with Cosign
+      - name: Attach SBOM to GHCR images with Cosign
         env:
           COSIGN_EXPERIMENTAL: 1
         run: |
-          echo "::group::Attaching SBOM to images"
+          echo "::group::Attaching SBOM to GHCR images (forensic artifacts)"
 
+          # Attach SBOM ONLY to GHCR (not Docker Hub - keeps Docker Hub clean)
           cosign attach sbom --sbom sbom-spdx.json \
-            ${{ env.DOCKER_REPO }}:sha-${{ steps.meta.outputs.git_commit }}@${{ steps.build.outputs.digest }}
+            ${{ env.GHCR_REPO }}:sha-${{ steps.meta.outputs.git_commit }}@${{ steps.build.outputs.digest }}
 
           echo "::endgroup::"
-          echo "::notice::✅ SBOM attached to image"
+          echo "::notice::✅ SBOM attached to GHCR images"
+          echo "::notice::Docker Hub tags remain clean (no .sig/.sbom clutter)"
 
       - name: Update Docker Hub description
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ env.DOCKER_REPO }}
+          repository: ${{ env.DOCKERHUB_REPO }}
           readme-filepath: ./docs/DOCKER.md
         continue-on-error: true
 
@@ -251,16 +272,24 @@ jobs:
           echo "- **Build Date:** \`${{ steps.meta.outputs.build_date }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Platforms:** \`${{ env.PLATFORMS }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Published Tags" >> $GITHUB_STEP_SUMMARY
+          echo "### Published to Docker Hub (Clean Tags)" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.meta.outputs.tags }}" | tr ',' '\n' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.dockerhub_tags }}" | tr ',' '\n' >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Published to GHCR (With Forensic Artifacts)" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.ghcr_tags }}" | tr ',' '\n' >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Security Features" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Multi-architecture builds" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Multi-architecture builds (amd64, arm64, arm/v7)" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ SBOM generated (SPDX, CycloneDX, Syft)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Images signed with Cosign (keyless)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ GHCR images signed with Cosign (keyless)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ GHCR images include SBOM attestation" >> $GITHUB_STEP_SUMMARY
           echo "- ✅ Provenance attestation included" >> $GITHUB_STEP_SUMMARY
+          echo "- ℹ️ Docker Hub: Clean tags (no .sig/.sbom clutter)" >> $GITHUB_STEP_SUMMARY
+          echo "- ℹ️ GHCR: Full forensic artifacts for verification" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "*Production-ready forensic software with complete audit trail.*" >> $GITHUB_STEP_SUMMARY
@@ -306,7 +335,7 @@ jobs:
       - name: Pull and export image for scanning
         run: |
           docker buildx imagetools inspect \
-            ${{ env.DOCKER_REPO }}:sha-${{ steps.meta.outputs.git_commit }} \
+            ${{ env.DOCKERHUB_REPO }}:sha-${{ steps.meta.outputs.git_commit }} \
             --format '{{json .}}' | jq -r '.manifest.manifests[] | select(.platform.os == "linux" and .platform.architecture == "'$(echo ${{ matrix.platform }} | cut -d/ -f2)'") | .digest'
 
           # For simplicity, build the image locally for this platform
