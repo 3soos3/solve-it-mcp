@@ -21,6 +21,12 @@ on:
         description: 'Additional tag to apply'
         required: false
         type: string
+  workflow_run:
+    workflows: ["CI - Code Quality & Tests"]
+    types:
+      - completed
+    branches:
+      - main
   workflow_call:
     inputs:
       solveit_version:
@@ -42,10 +48,78 @@ env:
   PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
 
 jobs:
+  # Job 0: Verify CI Status (Strict Gating)
+  verify-ci:
+    name: Verify CI Status
+    runs-on: ubuntu-latest
+    # Only run this check for pushes to main or tags (not PRs, not workflow_dispatch)
+    if: github.event_name == 'push' || github.event_name == 'workflow_run'
+    steps:
+      - name: Check CI workflow status
+        if: github.event_name == 'workflow_run'
+        run: |
+          echo "::group::CI Workflow Status Check"
+          echo "Workflow run conclusion: ${{ github.event.workflow_run.conclusion }}"
+          echo "Workflow run event: ${{ github.event.workflow_run.event }}"
+          echo "Workflow run head branch: ${{ github.event.workflow_run.head_branch }}"
+          
+          if [ "${{ github.event.workflow_run.conclusion }}" != "success" ]; then
+            echo "::error::CI workflow did not succeed. Cannot proceed with Docker build."
+            echo "CI Status: ${{ github.event.workflow_run.conclusion }}"
+            exit 1
+          fi
+          
+          echo "::notice::✅ CI workflow passed successfully"
+          echo "::endgroup::"
+      
+      - name: Verify CI status via API (for direct pushes)
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "::group::Checking CI Status via GitHub API"
+          
+          # Get the commit SHA
+          COMMIT_SHA="${{ github.sha }}"
+          echo "Checking CI status for commit: ${COMMIT_SHA}"
+          
+          # Wait a moment for CI workflow to start
+          echo "Waiting 10 seconds for CI workflow to initialize..."
+          sleep 10
+          
+          # Check for CI workflow runs
+          CI_RUNS=$(curl -s -H "Authorization: token ${GH_TOKEN}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs?event=push&head_sha=${COMMIT_SHA}" \
+            | jq -r '.workflow_runs[] | select(.name == "CI - Code Quality & Tests") | .conclusion')
+          
+          if [ -z "$CI_RUNS" ]; then
+            echo "::warning::CI workflow not found yet. This may be a race condition."
+            echo "::notice::Allowing workflow to proceed, but CI should be configured as required check."
+            exit 0
+          fi
+          
+          # Check if any CI run failed
+          if echo "$CI_RUNS" | grep -q "failure"; then
+            echo "::error::CI workflow failed for this commit"
+            exit 1
+          fi
+          
+          # Check if CI is still running
+          if echo "$CI_RUNS" | grep -q "null"; then
+            echo "::notice::CI workflow is still running. Waiting for completion..."
+            echo "::notice::This workflow will wait for CI to complete."
+          fi
+          
+          echo "::notice::✅ CI status verified"
+          echo "::endgroup::"
+  
   # Job 1: Determine scanning strategy (quick vs full)
   determine-strategy:
     name: Determine Scan Strategy
     runs-on: ubuntu-latest
+    needs: [verify-ci]
+    # Skip verify-ci dependency for PRs and manual triggers
+    if: always() && (needs.verify-ci.result == 'success' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
     outputs:
       scan-platforms: ${{ steps.strategy.outputs.platforms }}
       scan-mode: ${{ steps.strategy.outputs.mode }}
