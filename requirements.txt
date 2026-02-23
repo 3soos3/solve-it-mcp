@@ -1,9 +1,31 @@
-# Core dependencies for MCP Template Server (SDK-based)
+# Core MCP dependencies
 mcp>=1.0.0                 # Official Anthropic MCP SDK
 pydantic>=2.0,<3.0         # Data validation and serialization
 anyio>=4.0,<5.0            # Async utilities (MCP SDK compatibility)
 aiofiles>=23.0             # Async file operations for tools
 httpx>=0.25,<1.0           # HTTP client for tools
+
+# HTTP/ASGI server dependencies
+starlette>=0.37.0          # Lightweight ASGI framework
+uvicorn[standard]>=0.27.0  # ASGI server with WebSocket support
+
+# OpenTelemetry core dependencies
+opentelemetry-api>=1.21.0              # OpenTelemetry API
+opentelemetry-sdk>=1.21.0              # OpenTelemetry SDK
+opentelemetry-instrumentation>=0.42b0  # Base instrumentation package
+
+# OpenTelemetry exporters
+opentelemetry-exporter-otlp>=1.21.0                 # OTLP exporter (meta-package)
+opentelemetry-exporter-otlp-proto-grpc>=1.21.0     # OTLP gRPC exporter
+
+# OpenTelemetry auto-instrumentation
+opentelemetry-instrumentation-asyncio>=0.42b0   # AsyncIO instrumentation
+opentelemetry-instrumentation-httpx>=0.42b0     # HTTPX client instrumentation
+opentelemetry-instrumentation-logging>=0.42b0   # Logging instrumentation
+opentelemetry-instrumentation-starlette>=0.42b0 # Starlette instrumentation (optional)
+
+# Resource monitoring
+psutil>=5.9.0              # System and process utilities
 
 # Development dependencies
 pytest>=7.0                # Testing framework

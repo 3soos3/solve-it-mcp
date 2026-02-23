@@ -1,13 +1,13 @@
 """Base class for SOLVE-IT MCP tools."""
 
-import os
 from abc import ABC
+import os
 from pathlib import Path
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, TypeVar
 
-from .base import BaseTool, ToolParams
 from utils.data_path import get_solve_it_data_path, validate_solve_it_data_path
 
+from .base import BaseTool, ToolParams
 
 P = TypeVar("P", bound=ToolParams)
 
@@ -33,7 +33,7 @@ class SolveItBaseTool(BaseTool[P], ABC):
     require_path_validation: bool = False  # Most tools don't need path validation
     allowed_paths: list[str] = []  # Will be set by tools that need path validation
     
-    def __init__(self, custom_data_path: Optional[str] = None, init_kb: bool = True) -> None:
+    def __init__(self, custom_data_path: str | None = None, init_kb: bool = True) -> None:
         """
         Initialize SOLVE-IT tool with optional knowledge base initialization.
         
@@ -65,7 +65,7 @@ class SolveItBaseTool(BaseTool[P], ABC):
             # Modern mode: Wait for shared knowledge base to be set by server
             self.logger.debug(f"SOLVE-IT tool {self.name} created, awaiting shared knowledge base")
     
-    def _resolve_data_path(self, custom_path: Optional[str] = None) -> None:
+    def _resolve_data_path(self, custom_path: str | None = None) -> None:
         """
         Resolve the data path for this tool instance.
         
@@ -150,7 +150,7 @@ class SolveItBaseTool(BaseTool[P], ABC):
             self.logger.error(f"Failed to initialize knowledge base for {self.name}: {e}")
             raise ValueError(f"SOLVE-IT knowledge base initialization failed: {e}")
     
-    def get_knowledge_base_stats(self) -> Dict[str, Any]:
+    def get_knowledge_base_stats(self) -> dict[str, Any]:
         """
         Get statistics about the loaded knowledge base.
         
@@ -192,7 +192,7 @@ class SolveItBaseTool(BaseTool[P], ABC):
             self.logger.error(error_msg)
             return "Tool not properly initialized. Please contact support."
         
-        error_msg = f"Error in {operation}: {str(error)}"
+        error_msg = f"Error in {operation}: {error!s}"
         self.logger.error(error_msg, extra={
             "tool_name": self.name,
             "singleton_id": id(self.knowledge_base),

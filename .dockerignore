@@ -1,0 +1,101 @@
+# .dockerignore - Optimize Docker build context
+# Excludes unnecessary files from being sent to Docker daemon during build
+# This significantly speeds up builds and reduces image size
+
+# ============================================================================
+# Git and Version Control
+# ============================================================================
+.git
+.gitignore
+.gitattributes
+.github
+
+# ============================================================================
+# Documentation
+# ============================================================================
+*.md
+!README.md
+docs/
+examples/
+
+# ============================================================================
+# Tests and Development
+# ============================================================================
+tests/
+test_*.py
+*_test.py
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# ============================================================================
+# Python Development
+# ============================================================================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Type checking and linting
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.pytype/
+
+# ============================================================================
+# IDE and Editor Files
+# ============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ============================================================================
+# CI/CD and Deployment
+# ============================================================================
+.github/
+*.yml
+*.yaml
+!docker-compose*.yml
+
+# ============================================================================
+# Docker Files (prevent recursion)
+# ============================================================================
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# ============================================================================
+# Logs and Temporary Files
+# ============================================================================
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+
+# ============================================================================
+# Environment and Secrets
+# ============================================================================
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+secrets/

@@ -15,102 +15,72 @@ Features:
 
 import argparse
 import asyncio
-import os
+from contextlib import nullcontext
 import sys
 import time
+from typing import Any
 import uuid
-from typing import Any, Dict
 
-import mcp.server.stdio
+from mcp.server.lowlevel import Server
 import mcp.types as types
-from mcp.server.lowlevel import NotificationOptions, Server
-from mcp.server.models import InitializationOptions
+
+# Configuration and observability
+from config import load_config
+
+# Transport modules
+from transports import HTTP_AVAILABLE, HTTPTransportManager, run_stdio_server
+from utils.correlation import CorrelationContext
+from utils.metrics import MCPMetrics
+from utils.telemetry import TelemetryManager
+
+# OpenTelemetry (conditional import)
+try:
+    from opentelemetry import trace
+    from opentelemetry.trace import Status, StatusCode
+    OTEL_AVAILABLE = True
+except ImportError:
+    OTEL_AVAILABLE = False
 
 from tools.base import BaseTool
 from tools.solveit_tools import (
-    GetDatabaseDescriptionTool,
-    SearchTool,
-    GetTechniqueDetailsTool,
-    GetWeaknessDetailsTool,
-    GetMitigationDetailsTool,
-    GetWeaknessesForTechniqueTool,
-    GetMitigationsForWeaknessTool,
-    # Reverse Relationships
-    GetTechniquesForWeaknessTool,
-    GetWeaknessesForMitigationTool,
-    GetTechniquesForMitigationTool,
-    # Objective/Mapping Management
-    ListObjectivesTool,
-    GetTechniquesForObjectiveTool,
-    ListAvailableMappingsTool,
-    LoadObjectiveMappingTool,
-    # Bulk Retrieval - Concise Format
-    GetAllTechniquesWithNameAndIdTool,
-    GetAllWeaknessesWithNameAndIdTool,
+    GetAllMitigationsWithFullDetailTool,
     GetAllMitigationsWithNameAndIdTool,
     # Bulk Retrieval - Full Detail Format
     GetAllTechniquesWithFullDetailTool,
+    # Bulk Retrieval - Concise Format
+    GetAllTechniquesWithNameAndIdTool,
     GetAllWeaknessesWithFullDetailTool,
-    GetAllMitigationsWithFullDetailTool,
+    GetAllWeaknessesWithNameAndIdTool,
+    GetDatabaseDescriptionTool,
+    GetMitigationDetailsTool,
+    GetMitigationsForWeaknessTool,
+    GetTechniqueDetailsTool,
+    GetTechniquesForMitigationTool,
+    GetTechniquesForObjectiveTool,
+    # Reverse Relationships
+    GetTechniquesForWeaknessTool,
+    GetWeaknessDetailsTool,
+    GetWeaknessesForMitigationTool,
+    GetWeaknessesForTechniqueTool,
+    ListAvailableMappingsTool,
+    # Objective/Mapping Management
+    ListObjectivesTool,
+    LoadObjectiveMappingTool,
+    SearchTool,
 )
-from utils.logging import configure_logging, get_logger
-from utils.security_middleware import SecurityMiddleware, SecurityError
-from utils.shared_security import SharedSecurityConfig
 from utils.knowledge_base_manager import SharedKnowledgeBase
+from utils.logging import configure_logging, get_logger
+from utils.security_middleware import SecurityError, SecurityMiddleware
+from utils.shared_security import SharedSecurityConfig
 
 
-async def run_stdio_server(server: Server) -> None:
-    """Run server with STDIO transport (current default).
+def _noop_context():
+    """No-op context manager for when OpenTelemetry is disabled.
     
-    This function encapsulates the STDIO transport logic to enable future
-    transport abstraction without breaking existing integrations.
-    
-    Args:
-        server: Configured MCP server instance ready to run
+    Returns:
+        A context manager that does nothing (nullcontext)
     """
-    logger = get_logger(__name__)
-    
-    logger.info("Ready to accept MCP connections via STDIO transport")
-
-    try:
-        # Run the server with STDIO transport
-        async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
-            logger.info("STDIO transport established, starting server run loop")
-
-            await server.run(
-                read_stream,
-                write_stream,
-                InitializationOptions(
-                    server_name="solveit_mcp_server",
-                    server_version="0.1.0",
-                    capabilities=server.get_capabilities(
-                        notification_options=NotificationOptions(),
-                        experimental_capabilities={},
-                    ),
-                ),
-            )
-
-    except KeyboardInterrupt:
-        logger.info("Received keyboard interrupt, shutting down gracefully")
-    except Exception as e:
-        # Import here to avoid module-level import
-        import traceback
-        
-        # Check if this is an ExceptionGroup (TaskGroup error)
-        if hasattr(e, 'exceptions') and hasattr(e, '__class__') and 'ExceptionGroup' in str(type(e)):
-            logger.critical(f"Server run loop failed with ExceptionGroup containing {len(e.exceptions)} exception(s):")
-            for i, exc in enumerate(e.exceptions):
-                logger.critical(f"  Exception {i+1}: {type(exc).__name__}: {exc}")
-                logger.critical(f"  Traceback: {''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))}")
-        else:
-            # Handle regular exceptions
-            logger.critical(f"Server run loop failed: {type(e).__name__}: {e}")
-            logger.critical(f"Full traceback: {''.join(traceback.format_exception(type(e), e, e.__traceback__))}")
-        
-        logger.critical("Server terminating due to critical error")
-        raise
-    finally:
-        logger.info("SOLVE-IT MCP Server shutdown completed")
+    return nullcontext()
 
 
 def create_server() -> Server:
@@ -124,23 +94,63 @@ async def main() -> None:
     configure_logging()
     logger = get_logger(__name__)
 
-    # Parse command line arguments
+    # Load configuration from environment
+    logger.info("Loading server configuration from environment")
+    config = load_config()
+    
+    # Initialize OpenTelemetry if enabled
+    telemetry_manager = None
+    metrics = None
+    
+    if config.otel.enabled and OTEL_AVAILABLE:
+        logger.info("Initializing OpenTelemetry observability")
+        try:
+            telemetry_manager = TelemetryManager(config.otel)
+            telemetry_manager.initialize()
+            
+            # Create metrics recorder
+            metrics = MCPMetrics()
+            
+            logger.info(
+                f"OpenTelemetry initialized: service={config.otel.service_name}, "
+                f"environment={config.otel.environment}, "
+                f"sampling_rate={config.otel.trace_sampling_rate}"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to initialize OpenTelemetry: {e}. Continuing without telemetry.")
+            telemetry_manager = None
+            metrics = None
+    elif config.otel.enabled and not OTEL_AVAILABLE:
+        logger.warning("OpenTelemetry enabled in config but dependencies not installed. Install with: pip install opentelemetry-api opentelemetry-sdk")
+    else:
+        logger.info("OpenTelemetry disabled in configuration")
+
+    # Parse command line arguments (can override config.transport)
     parser = argparse.ArgumentParser(description="SOLVE-IT MCP Server")
     
-    # Transport selection (currently only STDIO supported)
+    # Transport selection - support both STDIO and HTTP
+    transport_choices = ["stdio"]
+    if HTTP_AVAILABLE:
+        transport_choices.append("http")
+    
     parser.add_argument(
         "--transport", 
-        choices=["stdio"], 
-        default="stdio",
-        help="Transport protocol (currently only stdio supported)"
+        choices=transport_choices, 
+        default=config.transport,
+        help=f"Transport protocol (choices: {', '.join(transport_choices)})"
     )
     
     args = parser.parse_args()
+    
+    # Override config transport if specified on CLI
+    if args.transport:
+        config.transport = args.transport
 
     # Log server startup
     logger.info("Starting SOLVE-IT MCP Server")
     logger.info("Server configuration: name=solveit_mcp_server, version=0.1.0")
-    logger.info(f"Transport selected: {args.transport}")
+    logger.info(f"Transport selected: {config.transport}")
+    logger.info(f"HTTP transport available: {HTTP_AVAILABLE}")
 
     # Create the server
     try:
@@ -238,7 +248,7 @@ async def main() -> None:
             tool.set_shared_knowledge_base(shared_kb, data_path)
 
         # Auto-generate tool registry and metadata
-        tool_registry: Dict[str, BaseTool[Any]] = {tool.name: tool for tool in tools}
+        tool_registry: dict[str, BaseTool[Any]] = {tool.name: tool for tool in tools}
         available_tools: list[str] = [tool.name for tool in tools]
 
         logger.info(f"Successfully configured {len(tools)} SOLVE-IT tools with shared architecture: {available_tools}")
@@ -291,8 +301,25 @@ async def main() -> None:
         name: str, arguments: dict[str, Any] | None
     ) -> list[types.TextContent]:
         """Handle tool calls with comprehensive logging and performance tracking."""
-        correlation_id = f"tool_{uuid.uuid4().hex[:8]}"
+        # Generate correlation ID and set context
+        correlation_id = CorrelationContext.generate_correlation_id()
+        CorrelationContext.set_correlation_id(correlation_id)
+        
         start_time = time.time()
+
+        # Track active requests
+        if metrics:
+            metrics.record_active_request(1)
+
+        # Start OpenTelemetry span if available
+        tracer = trace.get_tracer(__name__) if OTEL_AVAILABLE else None
+        span_context = tracer.start_as_current_span(
+            f"mcp.tool.{name}",
+            attributes={
+                "mcp.tool.name": name,
+                "mcp.correlation_id": correlation_id,
+            }
+        ) if tracer else _noop_context()
 
         # Log request details (sanitized)
         arg_count = len(arguments) if arguments else 0
@@ -306,74 +333,108 @@ async def main() -> None:
         )
 
         try:
-            if arguments is None:
-                arguments = {}
+            async with span_context:
+                if arguments is None:
+                    arguments = {}
 
-            # LAYER 1 SECURITY: Request validation (automatic, cannot be bypassed)
-            await security.validate_request(name, arguments)
+                # Add argument count to span
+                if tracer:
+                    trace.get_current_span().set_attribute("mcp.tool.arg_count", arg_count)
 
-            # Dynamic tool lookup
-            if name not in tool_registry:
-                error_msg = f"Unknown tool: {name}"
-                logger.error(
-                    error_msg,
+                # LAYER 1 SECURITY: Request validation (automatic, cannot be bypassed)
+                await security.validate_request(name, arguments)
+
+                # Dynamic tool lookup
+                if name not in tool_registry:
+                    error_msg = f"Unknown tool: {name}"
+                    logger.error(
+                        error_msg,
+                        extra={
+                            "correlation_id": correlation_id,
+                            "tool_name": name,
+                            "available_tools": available_tools,
+                        },
+                    )
+                    raise ValueError(error_msg)
+
+                tool = tool_registry[name]
+                logger.debug(
+                    f"Routing to {tool.name} tool", extra={"correlation_id": correlation_id}
+                )
+
+                # LAYER 2 SECURITY + Validation: Tool-level security and parameter validation
+                validation_start = time.time()
+                params = tool.validate_params(arguments)
+                validation_time = time.time() - validation_start
+
+                logger.debug(
+                    f"Parameter validation completed in {validation_time:.3f}s",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "validation_time_ms": validation_time * 1000,
+                    },
+                )
+
+                # LAYER 1 SECURITY: Execution timeout (automatic, cannot be bypassed)
+                tool_timeout = getattr(tool, 'execution_timeout', shared_security_config.default_timeout)
+                
+                async with security.execution_timeout(tool_timeout, name):
+                    execution_start = time.time()
+                    result = await tool.invoke(params)
+                    execution_time = time.time() - execution_start
+
+                # LAYER 1 SECURITY: Response validation (automatic, cannot be bypassed)
+                safe_result = await security.validate_response(result, name)
+
+                # Total request time
+                total_time = time.time() - start_time
+
+                # Record metrics
+                if metrics:
+                    metrics.record_tool_invocation(name, "success", total_time)
+                    metrics.record_active_request(-1)
+
+                # Add span attributes for success
+                if tracer:
+                    span = trace.get_current_span()
+                    span.set_attribute("mcp.tool.status", "success")
+                    span.set_attribute("mcp.tool.execution_time_ms", execution_time * 1000)
+                    span.set_attribute("mcp.tool.total_time_ms", total_time * 1000)
+                    span.set_attribute("mcp.tool.result_length", len(safe_result))
+                    span.set_status(Status(StatusCode.OK))
+
+                logger.info(
+                    f"Tool call completed successfully: {name}",
                     extra={
                         "correlation_id": correlation_id,
                         "tool_name": name,
-                        "available_tools": available_tools,
+                        "execution_time_ms": execution_time * 1000,
+                        "total_time_ms": total_time * 1000,
+                        "result_length": len(safe_result),
+                        "timeout_limit_ms": tool_timeout * 1000,
                     },
                 )
-                raise ValueError(error_msg)
 
-            tool = tool_registry[name]
-            logger.debug(
-                f"Routing to {tool.name} tool", extra={"correlation_id": correlation_id}
-            )
-
-            # LAYER 2 SECURITY + Validation: Tool-level security and parameter validation
-            validation_start = time.time()
-            params = tool.validate_params(arguments)
-            validation_time = time.time() - validation_start
-
-            logger.debug(
-                f"Parameter validation completed in {validation_time:.3f}s",
-                extra={
-                    "correlation_id": correlation_id,
-                    "validation_time_ms": validation_time * 1000,
-                },
-            )
-
-            # LAYER 1 SECURITY: Execution timeout (automatic, cannot be bypassed)
-            tool_timeout = getattr(tool, 'execution_timeout', shared_security_config.default_timeout)
-            
-            async with security.execution_timeout(tool_timeout, name):
-                execution_start = time.time()
-                result = await tool.invoke(params)
-                execution_time = time.time() - execution_start
-
-            # LAYER 1 SECURITY: Response validation (automatic, cannot be bypassed)
-            safe_result = await security.validate_response(result, name)
-
-            # Total request time
-            total_time = time.time() - start_time
-
-            logger.info(
-                f"Tool call completed successfully: {name}",
-                extra={
-                    "correlation_id": correlation_id,
-                    "tool_name": name,
-                    "execution_time_ms": execution_time * 1000,
-                    "total_time_ms": total_time * 1000,
-                    "result_length": len(safe_result),
-                    "timeout_limit_ms": tool_timeout * 1000,
-                },
-            )
-
-            return [types.TextContent(type="text", text=safe_result)]
+                return [types.TextContent(type="text", text=safe_result)]
 
         except SecurityError as e:
             # Calculate time even for failures
             total_time = time.time() - start_time
+
+            # Record metrics for security violations
+            if metrics:
+                metrics.record_tool_invocation(name, "security_error", total_time)
+                metrics.record_active_request(-1)
+                metrics.record_security_violation(name, str(e))
+
+            # Add span attributes for security error
+            if tracer and OTEL_AVAILABLE:
+                span = trace.get_current_span()
+                span.set_attribute("mcp.tool.status", "security_error")
+                span.set_attribute("mcp.tool.error_type", "SecurityError")
+                span.set_attribute("mcp.tool.total_time_ms", total_time * 1000)
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
 
             # Log security violations with high severity
             logger.error(
@@ -388,11 +449,25 @@ async def main() -> None:
             )
 
             # Convert SecurityError to ValueError for MCP protocol
-            raise ValueError(f"Security policy violation: {str(e)}")
+            raise ValueError(f"Security policy violation: {e!s}")
 
         except Exception as e:
             # Calculate time even for failures
             total_time = time.time() - start_time
+
+            # Record metrics for errors
+            if metrics:
+                metrics.record_tool_invocation(name, "error", total_time)
+                metrics.record_active_request(-1)
+
+            # Add span attributes for error
+            if tracer and OTEL_AVAILABLE:
+                span = trace.get_current_span()
+                span.set_attribute("mcp.tool.status", "error")
+                span.set_attribute("mcp.tool.error_type", type(e).__name__)
+                span.set_attribute("mcp.tool.total_time_ms", total_time * 1000)
+                span.record_exception(e)
+                span.set_status(Status(StatusCode.ERROR, description=str(e)))
 
             # Log detailed error information
             logger.error(
@@ -413,17 +488,32 @@ async def main() -> None:
 
             # Re-raise the exception (SDK will handle the MCP error response)
             raise
+        finally:
+            # Clear correlation context
+            CorrelationContext.clear_correlation_id()
 
     # Server startup completed successfully
     logger.info("Server initialization completed successfully")
     
-    # Run server with selected transport (currently only STDIO supported)
-    # Future enhancement: Add transport selection logic here
-    # if args.transport == "sse":
-    #     await run_sse_server(server)
-    # else:
-    #     await run_stdio_server(server)
-    await run_stdio_server(server)
+    # Run server with selected transport
+    try:
+        if config.transport == "http":
+            if not HTTP_AVAILABLE:
+                logger.critical("HTTP transport requested but dependencies not installed")
+                logger.critical("Install with: pip install starlette uvicorn")
+                raise RuntimeError("HTTP transport not available. Install starlette and uvicorn.")
+            
+            logger.info(f"Starting HTTP/SSE transport on {config.http.host}:{config.http.port}")
+            http_manager = HTTPTransportManager(server, config.http)
+            await http_manager.run()
+        else:
+            logger.info("Starting STDIO transport")
+            await run_stdio_server(server)
+    finally:
+        # Cleanup telemetry on shutdown
+        if telemetry_manager:
+            logger.info("Shutting down OpenTelemetry")
+            telemetry_manager.shutdown()
 
 
 if __name__ == "__main__":

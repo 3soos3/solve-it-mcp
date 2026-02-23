@@ -6,13 +6,12 @@ its own knowledge base instance.
 """
 
 import os
-import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
-import logging
+import sys
+from typing import Any, Optional
 
-from .logging import get_logger
 from .data_path import get_solve_it_data_path, validate_solve_it_data_path
+from .logging import get_logger
 
 
 class SharedKnowledgeBase:
@@ -28,10 +27,10 @@ class SharedKnowledgeBase:
     
     _instance: Optional['SharedKnowledgeBase'] = None
     _knowledge_base = None
-    _data_path: Optional[str] = None
+    _data_path: str | None = None
     _logger = None
     
-    def __new__(cls, data_path: Optional[str] = None):
+    def __new__(cls, data_path: str | None = None):
         """
         Create or return the singleton instance.
         
@@ -49,7 +48,7 @@ class SharedKnowledgeBase:
             cls._instance._init_knowledge_base(data_path)
         return cls._instance
     
-    def _init_knowledge_base(self, custom_data_path: Optional[str] = None) -> None:
+    def _init_knowledge_base(self, custom_data_path: str | None = None) -> None:
         """
         Initialize the knowledge base once for all tools.
         
@@ -81,7 +80,7 @@ class SharedKnowledgeBase:
             self._logger.error(f"Failed to initialize shared knowledge base: {e}")
             raise ValueError(f"Shared knowledge base initialization failed: {e}")
     
-    def _resolve_data_path(self, custom_path: Optional[str] = None) -> None:
+    def _resolve_data_path(self, custom_path: str | None = None) -> None:
         """
         Resolve the data path for the shared knowledge base.
         
@@ -197,7 +196,7 @@ class SharedKnowledgeBase:
             raise RuntimeError("Data path not resolved")
         return self._data_path
     
-    def get_knowledge_base_stats(self) -> Dict[str, Any]:
+    def get_knowledge_base_stats(self) -> dict[str, Any]:
         """
         Get statistics about the loaded knowledge base.
         
@@ -238,7 +237,7 @@ class SharedKnowledgeBase:
             cls._logger.debug("Singleton instance reset")
 
 
-def get_shared_knowledge_base(data_path: Optional[str] = None):
+def get_shared_knowledge_base(data_path: str | None = None):
     """
     Convenience function to get the shared knowledge base instance.
     
@@ -252,7 +251,7 @@ def get_shared_knowledge_base(data_path: Optional[str] = None):
     return manager.get_knowledge_base()
 
 
-def get_shared_knowledge_base_stats(data_path: Optional[str] = None) -> Dict[str, Any]:
+def get_shared_knowledge_base_stats(data_path: str | None = None) -> dict[str, Any]:
     """
     Convenience function to get knowledge base statistics.
     

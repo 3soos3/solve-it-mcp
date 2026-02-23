@@ -1,0 +1,28 @@
+---
+# Hadolint Configuration for Dockerfile Best Practices
+# https://github.com/hadolint/hadolint
+
+failure-threshold: warning
+
+ignored:
+  # DL3018: Pin versions in apk add (Alpine doesn't always have version info)
+  - DL3018
+  # DL3013: Pin versions in pip (we use requirements.txt)
+  - DL3013
+
+trustedRegistries:
+  - docker.io
+  - mirror.gcr.io
+  - ghcr.io
+
+label-schema:
+  author: text
+  version: text
+  org.opencontainers.image.created: rfc3339
+  org.opencontainers.image.authors: text
+  org.opencontainers.image.url: url
+  org.opencontainers.image.source: url
+  org.opencontainers.image.version: text
+  org.opencontainers.image.revision: text
+  org.opencontainers.image.title: text
+  org.opencontainers.image.description: text

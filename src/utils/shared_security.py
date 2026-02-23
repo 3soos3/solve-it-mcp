@@ -6,7 +6,6 @@ its own security configuration instance.
 """
 
 from typing import Optional
-import logging
 
 from .logging import get_logger
 from .security_middleware import SecurityConfig
@@ -24,7 +23,7 @@ class SharedSecurityConfig:
     """
     
     _instance: Optional['SharedSecurityConfig'] = None
-    _security_config: Optional[SecurityConfig] = None
+    _security_config: SecurityConfig | None = None
     _logger = None
     
     def __new__(cls):

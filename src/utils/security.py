@@ -107,8 +107,8 @@ from __future__ import annotations
 
 import asyncio
 import os
-import re
 from pathlib import Path
+import re
 from time import monotonic
 
 from .logging import get_logger
@@ -324,7 +324,7 @@ class RateLimiter:
             return True
 
 
-def validate_tool_security_config(tool: 'BaseTool') -> None:
+def validate_tool_security_config(tool: BaseTool) -> None:
     """Validate tool security configuration at registration time.
     
     This function ensures that tools have valid security configurations
@@ -377,7 +377,7 @@ def validate_tool_security_config(tool: 'BaseTool') -> None:
     if hasattr(tool, 'Params'):
         param_model = tool.Params
         if hasattr(param_model, 'model_fields'):
-            for field_name, field_info in param_model.model_fields.items():
+            for field_name, _field_info in param_model.model_fields.items():
                 # Check if field name suggests file path handling
                 if any(keyword in field_name.lower() for keyword in ['path', 'file', 'dir', 'folder']):
                     if not getattr(tool, 'require_path_validation', False):
@@ -392,10 +392,10 @@ class SecurityConfigError(Exception):
 
 
 __all__ = [
-    "sanitize_input", 
-    "sanitize_error", 
-    "validate_path", 
     "RateLimiter",
-    "validate_tool_security_config",
-    "SecurityConfigError"
+    "SecurityConfigError",
+    "sanitize_error",
+    "sanitize_input",
+    "validate_path",
+    "validate_tool_security_config"
 ]

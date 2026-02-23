@@ -1,0 +1,81 @@
+version: '3.8'
+
+# Production Docker Compose configuration for SOLVE-IT MCP Server
+# Optimized for HTTP/SSE transport mode with observability
+
+services:
+  solveit-mcp:
+    image: 3soos3/solve-it-mcp:latest
+    container_name: solveit-mcp-server
+    
+    # Build configuration (if building locally instead of pulling from Docker Hub)
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SOLVE_IT_SOURCE: github
+        SOLVE_IT_VERSION: main
+        VERSION: stable
+    
+    # HTTP/SSE transport mode for production
+    environment:
+      # Transport configuration
+      MCP_TRANSPORT: http
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: 8000
+      
+      # Logging configuration
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      
+      # OpenTelemetry configuration
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      ENVIRONMENT: production
+      
+      # CORS configuration (customize for your needs)
+      CORS_ORIGINS: "*"
+    
+    # Port mapping
+    ports:
+      - "8000:8000"
+    
+    # Health check (using Kubernetes standard /healthz endpoint)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    
+    # Run as non-root user (matches Dockerfile USER directive)
+    user: "1000:1000"
+    
+    # Read-only root filesystem (uncomment if your app supports it)
+    # read_only: true
+    
+    # Networks
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
+    name: solveit-mcp-network

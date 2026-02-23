@@ -2,14 +2,13 @@
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from .logging import get_logger
 
 logger = get_logger(__name__)
 
 
-def get_solve_it_data_path(custom_path: Optional[str] = None) -> str:
+def get_solve_it_data_path(custom_path: str | None = None) -> str:
     """
     Get the path to the SOLVE-IT data directory.
     

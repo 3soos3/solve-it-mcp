@@ -105,14 +105,13 @@ file_handler.setLevel(logging.DEBUG)          # File: everything
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 import json
 import logging
 import logging.handlers
 import os
 import sys
-from dataclasses import dataclass
-from datetime import datetime
-from typing import Optional
 
 
 @dataclass
@@ -153,14 +152,14 @@ class LogConfig:
 
     level: str = "INFO"
     console: bool = True
-    file_path: Optional[str] = None
+    file_path: str | None = None
     syslog: bool = False
     syslog_facility: str = "local0"
     format_type: str = "human"  # "human" or "json"
     correlation_ids: bool = True
 
     @classmethod
-    def from_env(cls) -> "LogConfig":
+    def from_env(cls) -> LogConfig:
         """Create LogConfig from environment variables.
 
         This method reads configuration from environment variables,
@@ -307,7 +306,7 @@ def _get_syslog_facility(facility_name: str) -> int:
     return facilities[facility_name]
 
 
-def configure_logging(config: Optional[LogConfig] = None) -> None:
+def configure_logging(config: LogConfig | None = None) -> None:
     """Configure the root logger with multiple handlers.
 
     This function sets up logging according to the provided configuration,
@@ -352,7 +351,7 @@ def configure_logging(config: Optional[LogConfig] = None) -> None:
             file_handler = logging.FileHandler(config.file_path)
             file_handler.setFormatter(formatter)
             root_logger.addHandler(file_handler)
-        except (OSError, IOError) as e:
+        except OSError as e:
             # Log to console if file logging fails
             print(
                 f"Warning: Could not setup file logging to {config.file_path}: {e}",
@@ -374,7 +373,7 @@ def configure_logging(config: Optional[LogConfig] = None) -> None:
             print(f"Warning: Could not setup syslog logging: {e}", file=sys.stderr)
 
 
-def get_logger(name: str, config: Optional[LogConfig] = None) -> logging.Logger:
+def get_logger(name: str, config: LogConfig | None = None) -> logging.Logger:
     """Get a logger configured for MCP Template with structured output.
 
     Creates a logger with consistent formatting and appropriate defaults
@@ -464,4 +463,4 @@ def get_logger(name: str, config: Optional[LogConfig] = None) -> logging.Logger:
     return logger
 
 
-__all__ = ["get_logger", "configure_logging", "LogConfig", "StructuredFormatter"]
+__all__ = ["LogConfig", "StructuredFormatter", "configure_logging", "get_logger"]

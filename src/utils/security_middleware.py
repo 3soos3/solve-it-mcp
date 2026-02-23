@@ -46,11 +46,10 @@ All limits can be configured via environment variables:
 from __future__ import annotations
 
 import asyncio
-import os
-import re
-import time
 from contextlib import asynccontextmanager
-from typing import Any, Dict
+import os
+import time
+from typing import Any
 
 from utils.logging import get_logger
 
@@ -215,7 +214,7 @@ class SecurityMiddleware:
         
         logger.info("Security middleware initialized")
     
-    async def validate_request(self, name: str, arguments: Dict[str, Any]) -> None:
+    async def validate_request(self, name: str, arguments: dict[str, Any]) -> None:
         """Layer 1: Request validation - always applied.
         
         Validates incoming requests for security threats including:
@@ -358,7 +357,7 @@ class SecurityMiddleware:
             truncated = True
             
             logger.warning(
-                f"Output truncated due to size limit",
+                "Output truncated due to size limit",
                 extra={
                     "tool_name": tool_name,
                     "original_size": original_size,
@@ -375,7 +374,7 @@ class SecurityMiddleware:
             truncated = True
             
             logger.warning(
-                f"Output truncated due to line limit",
+                "Output truncated due to line limit",
                 extra={
                     "tool_name": tool_name,
                     "original_lines": len(lines),
@@ -388,7 +387,7 @@ class SecurityMiddleware:
         final_size = len(result_str)
         if not await self.output_limiter.check_output_rate(final_size):
             logger.error(
-                f"Output rate limit exceeded",
+                "Output rate limit exceeded",
                 extra={
                     "tool_name": tool_name,
                     "output_size": final_size,
@@ -425,7 +424,7 @@ class SecurityMiddleware:
         
         if effective_timeout != tool_timeout:
             logger.info(
-                f"Tool timeout capped at maximum",
+                "Tool timeout capped at maximum",
                 extra={
                     "tool_name": tool_name,
                     "requested_timeout": tool_timeout,
@@ -437,9 +436,9 @@ class SecurityMiddleware:
         try:
             async with asyncio.timeout(effective_timeout):
                 yield
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
-                f"Tool execution timeout",
+                "Tool execution timeout",
                 extra={
                     "tool_name": tool_name,
                     "timeout_seconds": effective_timeout,
@@ -449,4 +448,4 @@ class SecurityMiddleware:
             raise SecurityError(f"Tool '{tool_name}' execution timeout ({effective_timeout}s)")
 
 
-__all__ = ["SecurityMiddleware", "SecurityConfig", "SecurityError"]
+__all__ = ["SecurityConfig", "SecurityError", "SecurityMiddleware"]
