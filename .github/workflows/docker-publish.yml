@@ -63,7 +63,7 @@ jobs:
           # Try to detect SOLVE-IT version using multiple methods (in priority order)
           
           # Method 1: Check GitHub Releases API (most reliable)
-          SOLVEIT_VERSION=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // empty' | sed 's/^v//' | sed 's/^0\.//')
+          SOLVEIT_VERSION=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // empty' | sed 's/^v//')
           
           if [ -n "$SOLVEIT_VERSION" ]; then
             echo "::notice::Detected SOLVE-IT version from GitHub Releases: ${SOLVEIT_VERSION}"
@@ -76,18 +76,18 @@ jobs:
               echo "::notice::Detected SOLVE-IT version from VERSION file: ${SOLVEIT_VERSION}"
             # Method 3: Get latest git tag from local clone
             elif cd /tmp/solve-it && git describe --tags --abbrev=0 2>/dev/null; then
-              SOLVEIT_VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+              SOLVEIT_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
               echo "::notice::Detected SOLVE-IT version from git tag: ${SOLVEIT_VERSION}"
             # Method 4 (AVOID): Use commit date (unreliable - may show future dates)
             else
-              SOLVEIT_VERSION="2025.10"
+              SOLVEIT_VERSION="0.2025-10"
               echo "::warning::Could not detect SOLVE-IT version, using known stable: ${SOLVEIT_VERSION}"
             fi
           fi
           
           # Fallback if all methods fail
           if [ -z "$SOLVEIT_VERSION" ]; then
-            SOLVEIT_VERSION="2025.10"
+            SOLVEIT_VERSION="0.2025-10"
             echo "::warning::All detection methods failed, using fallback: ${SOLVEIT_VERSION}"
           fi
           
@@ -334,9 +334,8 @@ jobs:
           # Build tags
           TAGS="${{ env.DOCKER_REPO }}:sha-${GIT_COMMIT}"
           
-          # Add stable tag for main branch
+          # Add latest tag for main branch (stable is manual only)
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            TAGS="${TAGS},${{ env.DOCKER_REPO }}:stable"
             TAGS="${TAGS},${{ env.DOCKER_REPO }}:latest"
           fi
           

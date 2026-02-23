@@ -9,6 +9,8 @@ ignored:
   - DL3018
   # DL3013: Pin versions in pip (we use requirements.txt)
   - DL3013
+  # DL3048: Ignore deprecated 'author' label (privacy + deprecated in OCI spec)
+  - DL3048
 
 trustedRegistries:
   - docker.io
@@ -16,10 +18,9 @@ trustedRegistries:
   - ghcr.io
 
 label-schema:
-  author: text
-  version: text
+  # Removed for privacy: author, org.opencontainers.image.authors
+  # Removed as deprecated: version (use org.opencontainers.image.version)
   org.opencontainers.image.created: rfc3339
-  org.opencontainers.image.authors: text
   org.opencontainers.image.url: url
   org.opencontainers.image.source: url
   org.opencontainers.image.version: text

@@ -43,9 +43,11 @@ ARG SOLVE_IT_VERSION=main
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=stable
+# Ensure BUILD_DATE is RFC3339 compliant, provide fallback if empty
+ARG BUILD_DATE_RFC3339=${BUILD_DATE:-1970-01-01T00:00:00Z}
 
 # Metadata labels following OCI Image Spec
-LABEL org.opencontainers.image.created="${BUILD_DATE}" \
+LABEL org.opencontainers.image.created="${BUILD_DATE_RFC3339}" \
       org.opencontainers.image.url="https://github.com/3soos3/solve-it-mcp" \
       org.opencontainers.image.documentation="https://github.com/3soos3/solve-it-mcp/blob/main/README.md" \
       org.opencontainers.image.source="https://github.com/3soos3/solve-it-mcp" \
@@ -56,18 +58,17 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.base.name="docker.io/library/python:3.12-alpine"
 
-# Install runtime system dependencies
+# Install runtime system dependencies and create non-root user
 # Alpine uses apk instead of apt-get
 RUN apk add --no-cache \
-    git \
-    curl \
-    ca-certificates \
-    libffi \
-    openssl
-
-# Create non-root user for security
-# Alpine uses addgroup/adduser instead of groupadd/useradd
-RUN addgroup -g 1000 mcpuser && \
+        git \
+        curl \
+        ca-certificates \
+        libffi \
+        openssl && \
+    # Create non-root user for security \
+    # Alpine uses addgroup/adduser instead of groupadd/useradd \
+    addgroup -g 1000 mcpuser && \
     adduser -D -u 1000 -G mcpuser -h /home/mcpuser -s /bin/sh mcpuser
 
 # Set working directory
@@ -80,7 +81,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application source code
 COPY --chown=mcpuser:mcpuser src/ /app/src/
 
-# Fetch SOLVE-IT knowledge base data
+# Fetch SOLVE-IT knowledge base data and set ownership
 # Two options based on SOLVE_IT_SOURCE build arg:
 # 1. github (default): Clone from GitHub repository
 # 2. local: Copy from local build context (requires solve-it-main/ directory)
@@ -92,10 +93,9 @@ RUN if [ "$SOLVE_IT_SOURCE" = "github" ]; then \
     else \
         echo "SOLVE-IT data will be copied from local context"; \
         mkdir -p /app/solve-it-main; \
-    fi
-
-# Set ownership of all app files to non-root user
-RUN chown -R mcpuser:mcpuser /app
+    fi && \
+    # Set ownership of all app files to non-root user \
+    chown -R mcpuser:mcpuser /app
 
 # Copy local SOLVE-IT data if building with SOLVE_IT_SOURCE=local
 # Note: This step is only used when SOLVE_IT_SOURCE=local (requires solve-it-main/ in build context)

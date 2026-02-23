@@ -82,8 +82,8 @@ Job 3: build-and-push
 
 1. Check for `VERSION` file in SOLVE-IT repository
 2. Fall back to latest git tag
-3. Fall back to commit date (YYYY.MM format)
-4. Default: `2025.10` with warning
+3. Fall back to commit date (0.YYYY-MM format)
+4. Default: `0.2025-10` with warning
 
 **Usage**: Version automatically embedded in release notes and Docker tags.
 
@@ -95,18 +95,18 @@ Job 3: build-and-push
 
 **Examples**:
 ```
-v2025.10-0.1.0        # Standard release
-v2025.10-0.1.1        # Patch
-v2025.10-0.2.0        # Minor update
-v2025.11-0.2.0        # SOLVE-IT data update
-v2025.11-1.0.0        # Major version
-v2025.10-0.1.0-rc.1   # Release candidate
+v0.2025-10-0.1.0        # Standard release
+v0.2025-10-0.1.1        # Patch
+v0.2025-10-0.2.0        # Minor update
+v0.2025-11-0.2.0        # SOLVE-IT data update
+v0.2025-11-1.0.0        # Major version
+v0.2025-10-0.1.0-rc.1   # Release candidate
 ```
 
 **Docker Tags** (full version only):
-- `3soos3/solve-it-mcp:v2025.10-0.1.0`
+- `3soos3/solve-it-mcp:v0.2025-10-0.1.0`
 - `3soos3/solve-it-mcp:latest`
-- `3soos3/solve-it-mcp:stable` (main branch)
+- `3soos3/solve-it-mcp:stable` (manual only)
 
 ---
 
@@ -175,7 +175,7 @@ v2025.10-0.1.0-rc.1   # Release candidate
 
 ### For First Release:
 
-- [ ] Create tag: `v2025.10-0.1.0`
+- [ ] Create tag: `v0.2025-10-0.1.0`
 - [ ] Verify full scan (3 platforms)
 - [ ] Verify GitHub Release auto-created
 - [ ] Verify Docker tags created correctly
