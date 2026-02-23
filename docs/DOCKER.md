@@ -53,8 +53,8 @@ Available on Docker Hub: `3soos3/solve-it-mcp`
 | Tag | Description | Use Case |
 |-----|-------------|----------|
 | `latest` | Latest stable build | Production (auto-updates) |
-| `stable` | Stable release | Production (pinned version) |
-| `v0.2025-10` | SOLVE-IT version tag | Production (specific SOLVE-IT dataset) |
+| `stable` | Manual stable marker | Production (manually marked as stable) |
+| `v0.2025-10-0.1.0` | Full version tag | Production (specific version) |
 | `sha-abc1234` | Git commit SHA | Reproducible builds, debugging |
 
 ### Multi-Architecture Support
@@ -296,8 +296,8 @@ docker build -t solve-it-mcp:local .
 
 # Build with custom SOLVE-IT version
 docker build \
-  --build-arg SOLVE_IT_VERSION=v2025-10 \
-  -t solve-it-mcp:2025-10 .
+  --build-arg SOLVE_IT_VERSION=v0.2025-10 \
+  -t solve-it-mcp:0.2025-10 .
 
 # Build using local SOLVE-IT data
 docker build \

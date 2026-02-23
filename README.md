@@ -36,7 +36,7 @@ See the main repository: [SOLVE-IT-DF/solve-it](https://github.com/SOLVE-IT-DF/s
 ### Pull and Run
 
 ```bash
-# Pull the latest stable image (SOLVE-IT 2025.10)
+# Pull the latest stable image (SOLVE-IT 0.2025-10)
 docker pull 3soos3/solve-it-mcp:latest
 
 # Run in HTTP mode (for web/API access)
@@ -58,9 +58,9 @@ curl -X POST http://localhost:8000/mcp/v1/messages \
 
 | Tag | Description | SOLVE-IT Version | Size |
 |-----|-------------|------------------|------|
-| `latest` | Latest stable release | 2025.10 | 181 MB |
-| `stable` | Production stable | 2025.10 | 181 MB |
-| `v2025.10-0.1.0` | Specific version | 2025.10 | 181 MB |
+| `latest` | Latest stable release | 0.2025-10 | 181 MB |
+| `stable` | Manual stable marker | 0.2025-10 | 181 MB |
+| `v0.2025-10-0.1.0` | Specific version | 0.2025-10 | 181 MB |
 
 **Architectures**: `linux/amd64`, `linux/arm64`, `linux/arm/v7`
 

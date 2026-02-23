@@ -11,7 +11,7 @@ v{SOLVEIT_VERSION}-{MAJOR}.{MINOR}.{PATCH}[-{PRERELEASE}]
 ```
 
 **Components:**
-- **SOLVEIT_VERSION**: SOLVE-IT knowledge base version (YYYY.MM format)
+- **SOLVEIT_VERSION**: SOLVE-IT knowledge base version (0.YYYY-MM format, matching upstream)
 - **MAJOR**: Breaking changes to MCP server (0, 1, 2, ...)
 - **MINOR**: New features, backward compatible (0, 1, 2, ...)
 - **PATCH**: Bug fixes, security patches (0, 1, 2, ...)
@@ -20,13 +20,13 @@ v{SOLVEIT_VERSION}-{MAJOR}.{MINOR}.{PATCH}[-{PRERELEASE}]
 ### Examples
 
 ```
-v2025.10-0.1.0        # SOLVE-IT 2025-10, MCP server v0.1.0
-v2025.10-0.1.1        # SOLVE-IT 2025-10, MCP server v0.1.1 (patch)
-v2025.10-0.2.0        # SOLVE-IT 2025-10, MCP server v0.2.0 (new feature)
-v2025.11-0.2.0        # SOLVE-IT 2025-11, MCP server v0.2.0 (data update)
-v2025.11-1.0.0        # SOLVE-IT 2025-11, MCP server v1.0.0 (major)
-v2025.10-0.1.0-rc.1   # Release candidate 1
-v2025.10-0.1.0-beta.1 # Beta release
+v0.2025-10-0.1.0        # SOLVE-IT 0.2025-10, MCP server v0.1.0
+v0.2025-10-0.1.1        # SOLVE-IT 0.2025-10, MCP server v0.1.1 (patch)
+v0.2025-10-0.2.0        # SOLVE-IT 0.2025-10, MCP server v0.2.0 (new feature)
+v0.2025-11-0.2.0        # SOLVE-IT 0.2025-11, MCP server v0.2.0 (data update)
+v0.2025-11-1.0.0        # SOLVE-IT 0.2025-11, MCP server v1.0.0 (major)
+v0.2025-10-0.1.0-rc.1   # Release candidate 1
+v0.2025-10-0.1.0-beta.1 # Beta release
 ```
 
 ## SOLVE-IT Version Detection
@@ -38,7 +38,7 @@ The GitHub Actions workflow automatically detects the SOLVE-IT version by:
 3. Falling back to git tags or commit date
 
 **Manual Override:**
-If auto-detection fails, the default version is `2025.10`. You can verify the detected version in the workflow logs.
+If auto-detection fails, the default version is `0.2025-10`. You can verify the detected version in the workflow logs.
 
 ## Creating a Release
 
@@ -70,7 +70,7 @@ git describe --tags --abbrev=0
 **Construct full version:**
 ```
 Format: v{SOLVEIT}-{MAJOR}.{MINOR}.{PATCH}
-Example: v2025.10-0.1.0
+Example: v0.2025-10-0.1.0
 ```
 
 #### 2. Update Local Repository
@@ -87,9 +87,9 @@ git status  # Should be clean
 
 ```bash
 # Create tag with detailed message
-git tag -a v2025.10-0.1.0 -m "Release v2025.10-0.1.0
+git tag -a v0.2025-10-0.1.0 -m "Release v0.2025-10-0.1.0
 
-SOLVE-IT Knowledge Base: 2025-10
+SOLVE-IT Knowledge Base: 0.2025-10
 MCP Server Version: 0.1.0
 
 Features:
@@ -118,7 +118,7 @@ Dependencies:
 #### 4. Push Tag to Trigger Workflow
 
 ```bash
-git push origin v2025.10-0.1.0
+git push origin v0.2025-10-0.1.0
 ```
 
 #### 5. Monitor Build Process
@@ -131,7 +131,7 @@ git push origin v2025.10-0.1.0
 1. determine-strategy
    - Detects: full scan mode
    - Outputs: 3 platforms (amd64, arm64, arm/v7)
-   - Detects SOLVE-IT version: 2025.10
+   - Detects SOLVE-IT version: 0.2025-10
    Duration: ~30 seconds
 
 2. security-scan (matrix)
@@ -157,9 +157,8 @@ Total: ~24 minutes
 # Visit: https://hub.docker.com/r/3soos3/solve-it-mcp/tags
 
 # Should see:
-# - 3soos3/solve-it-mcp:v2025.10-0.1.0
+# - 3soos3/solve-it-mcp:v0.2025-10-0.1.0
 # - 3soos3/solve-it-mcp:latest
-# - 3soos3/solve-it-mcp:stable (if from main)
 # - 3soos3/solve-it-mcp:sha-abc1234
 ```
 
@@ -176,7 +175,7 @@ Total: ~24 minutes
 
 **Verify Multi-Arch:**
 ```bash
-docker manifest inspect 3soos3/solve-it-mcp:v2025.10-0.1.0
+docker manifest inspect 3soos3/solve-it-mcp:v0.2025-10-0.1.0
 
 # Should show manifests for:
 # - linux/amd64
@@ -187,10 +186,10 @@ docker manifest inspect 3soos3/solve-it-mcp:v2025.10-0.1.0
 **Test Image:**
 ```bash
 # Pull and test
-docker pull 3soos3/solve-it-mcp:v2025.10-0.1.0
+docker pull 3soos3/solve-it-mcp:v0.2025-10-0.1.0
 
 # Run locally
-docker run --rm -d -p 8000:8000 3soos3/solve-it-mcp:v2025.10-0.1.0
+docker run --rm -d -p 8000:8000 3soos3/solve-it-mcp:v0.2025-10-0.1.0
 
 # Test health
 curl http://localhost:8000/healthz
@@ -206,31 +205,31 @@ For testing before official release:
 
 ```bash
 # Create RC tag
-git tag -a v2025.10-0.1.0-rc.1 -m "Release candidate 1 for v2025.10-0.1.0"
-git push origin v2025.10-0.1.0-rc.1
+git tag -a v0.2025-10-0.1.0-rc.1 -m "Release candidate 1 for v0.2025-10-0.1.0"
+git push origin v0.2025-10-0.1.0-rc.1
 
 # Workflow triggers:
 # - Full scan (3 platforms)
 # - Marked as pre-release in GitHub
-# - Docker tags: v2025.10-0.1.0-rc.1
+# - Docker tags: v0.2025-10-0.1.0-rc.1
 
 # Test in staging environment
-# If issues found: v2025.10-0.1.0-rc.2
-# Final release: v2025.10-0.1.0
+# If issues found: v0.2025-10-0.1.0-rc.2
+# Final release: v0.2025-10-0.1.0
 ```
 
 ### Beta Release
 
 ```bash
-git tag -a v2025.10-0.2.0-beta.1 -m "Beta release for testing"
-git push origin v2025.10-0.2.0-beta.1
+git tag -a v0.2025-10-0.2.0-beta.1 -m "Beta release for testing"
+git push origin v0.2025-10-0.2.0-beta.1
 ```
 
 ### Alpha Release
 
 ```bash
-git tag -a v2025.10-0.3.0-alpha.1 -m "Alpha release for early testing"
-git push origin v2025.10-0.3.0-alpha.1
+git tag -a v0.2025-10-0.3.0-alpha.1 -m "Alpha release for early testing"
+git push origin v0.2025-10-0.3.0-alpha.1
 ```
 
 ## Version Update Scenarios
@@ -238,43 +237,43 @@ git push origin v2025.10-0.3.0-alpha.1
 ### Scenario 1: Security Patch
 
 ```
-Current: v2025.10-0.1.0
+Current: v0.2025-10-0.1.0
 Fix: CVE in dependency
-Next: v2025.10-0.1.1
+Next: v0.2025-10-0.1.1
 
 Steps:
 1. Fix vulnerability
 2. Merge to main
-3. git tag -a v2025.10-0.1.1 -m "Security patch: Update vulnerable dependency"
-4. git push origin v2025.10-0.1.1
+3. git tag -a v0.2025-10-0.1.1 -m "Security patch: Update vulnerable dependency"
+4. git push origin v0.2025-10-0.1.1
 ```
 
 ### Scenario 2: New Feature
 
 ```
-Current: v2025.10-0.1.1
+Current: v0.2025-10-0.1.1
 Feature: Add new MCP tool
-Next: v2025.10-0.2.0
+Next: v0.2025-10-0.2.0
 
 Steps:
 1. Implement feature
 2. Merge to main
-3. git tag -a v2025.10-0.2.0 -m "Add new enhanced search tool"
-4. git push origin v2025.10-0.2.0
+3. git tag -a v0.2025-10-0.2.0 -m "Add new enhanced search tool"
+4. git push origin v0.2025-10-0.2.0
 ```
 
 ### Scenario 3: SOLVE-IT Data Update
 
 ```
-Current: v2025.10-0.2.0
-Update: SOLVE-IT releases 2025-11
-Next: v2025.11-0.2.0
+Current: v0.2025-10-0.2.0
+Update: SOLVE-IT releases 0.2025-11
+Next: v0.2025-11-0.2.0
 
 Steps:
-1. Verify SOLVE-IT 2025-11 compatibility
+1. Verify SOLVE-IT 0.2025-11 compatibility
 2. Update documentation if needed
-3. git tag -a v2025.11-0.2.0 -m "Update to SOLVE-IT 2025-11 dataset"
-4. git push origin v2025.11-0.2.0
+3. git tag -a v0.2025-11-0.2.0 -m "Update to SOLVE-IT 0.2025-11 dataset"
+4. git push origin v0.2025-11-0.2.0
 
 Note: Data is fetched automatically during build
 ```
@@ -282,21 +281,21 @@ Note: Data is fetched automatically during build
 ### Scenario 4: Breaking Change
 
 ```
-Current: v2025.11-0.2.0
+Current: v0.2025-11-0.2.0
 Change: Redesign MCP protocol
-Next: v2025.11-1.0.0
+Next: v0.2025-11-1.0.0
 
 Steps:
 1. Implement breaking changes
 2. Update documentation
-3. git tag -a v2025.11-1.0.0 -m "Major release: Breaking API changes
+3. git tag -a v0.2025-11-1.0.0 -m "Major release: Breaking API changes
 
 BREAKING CHANGES:
 - MCP endpoint structure changed
 - Tool parameters restructured
 - Client updates required
 "
-4. git push origin v2025.11-1.0.0
+4. git push origin v0.2025-11-1.0.0
 ```
 
 ## Security Scanning
@@ -330,12 +329,12 @@ Before each release:
 # Check SARIF reports in Security tab
 # Fix vulnerabilities
 # Delete failed tag:
-git tag -d v2025.10-0.1.0
-git push origin :refs/tags/v2025.10-0.1.0
+git tag -d v0.2025-10-0.1.0
+git push origin :refs/tags/v0.2025-10-0.1.0
 
 # Re-create tag after fixes
-git tag -a v2025.10-0.1.0 -m "..."
-git push origin v2025.10-0.1.0
+git tag -a v0.2025-10-0.1.0 -m "..."
+git push origin v0.2025-10-0.1.0
 ```
 
 ## Rollback Process
@@ -348,12 +347,12 @@ If a release has critical issues:
 # Fix issue
 git checkout main
 # ... make fixes ...
-git commit -m "Fix critical issue in v2025.10-0.1.0"
+git commit -m "Fix critical issue in v0.2025-10-0.1.0"
 git push origin main
 
 # Create patch release
-git tag -a v2025.10-0.1.1 -m "Hotfix for critical issue"
-git push origin v2025.10-0.1.1
+git tag -a v0.2025-10-0.1.1 -m "Hotfix for critical issue"
+git push origin v0.2025-10-0.1.1
 ```
 
 ### Option 2: Delete Release (Not Recommended)
@@ -362,8 +361,8 @@ git push origin v2025.10-0.1.1
 # Delete GitHub release (manual via UI)
 # Delete Docker Hub tags (manual via UI)
 # Delete git tag
-git tag -d v2025.10-0.1.0
-git push origin :refs/tags/v2025.10-0.1.0
+git tag -d v0.2025-10-0.1.0
+git push origin :refs/tags/v0.2025-10-0.1.0
 ```
 
 ## Helm Chart Updates
@@ -374,17 +373,17 @@ After Docker release, update Helm chart:
 cd ~/solve-it-charts
 
 # Update charts/solve-it-mcp/Chart.yaml
-# appVersion: "v2025.10-0.1.0"
+# appVersion: "v0.2025-10-0.1.0"
 
 # Update charts/solve-it-mcp/values.yaml
-# image.tag: "v2025.10-0.1.0"
+# image.tag: "v0.2025-10-0.1.0"
 
 git add charts/solve-it-mcp/
-git commit -m "Update to SOLVE-IT MCP v2025.10-0.1.0"
+git commit -m "Update to SOLVE-IT MCP v0.2025-10-0.1.0"
 git push origin main
 
 # Create Helm chart release
-git tag -a v0.1.1 -m "Helm chart v0.1.1 for SOLVE-IT MCP v2025.10-0.1.0"
+git tag -a v0.1.1 -m "Helm chart v0.1.1 for SOLVE-IT MCP v0.2025-10-0.1.0"
 git push origin v0.1.1
 ```
 
