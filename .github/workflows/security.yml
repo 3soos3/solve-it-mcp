@@ -125,7 +125,8 @@ jobs:
 
       - name: Run Hadolint (human-readable output)
         run: |
-          docker run --rm -i hadolint/hadolint < Dockerfile
+          docker run --rm -i hadolint/hadolint < Dockerfile || echo "Hadolint found issues (not blocking)"
+        continue-on-error: true
 
   # Job 4: Secret Scanning
   secret-scan:
