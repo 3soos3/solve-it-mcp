@@ -1,17 +1,19 @@
 # Branch Protection & CI Gating
 
-This document describes the strict CI gating strategy implemented for the `solve-it-mcp` repository to ensure code quality and prevent broken releases.
+
+This document describes the strict CI gating strategy implemented for the `solve-it-mcp` repository to ensure code quality and prevent broken releases for forensic software.
 
 ---
 
 ## 🛡️ Overview
 
-**Goal**: Prevent merging code to `main` and publishing Docker images unless all CI checks pass.
+**Goal**: Prevent merging code to `main` and publishing Docker images unless all quality, security, and build validation checks pass.
 
 **Strategy**: Multi-layered protection using:
 1. GitHub Branch Protection Rules (required checks)
-2. Workflow dependencies (automated gating)
-3. CI status verification (runtime checks)
+2. Separate focused workflows (parallel execution for speed)
+3. Docker-only builds on main branch (no PR noise)
+4. Forensic integrity features (SBOM, image signing, provenance)
 
 ---
 
@@ -27,145 +29,219 @@ Navigate to: **Settings → Branches → Branch protection rules → Add rule**
 Branch name pattern: main
 
 ☑ Require a pull request before merging
-  ☑ Require approvals: 0 (or 1 if you want self-review)
+  ☑ Require approvals: 0 (or 1+ for team review)
   ☑ Dismiss stale pull request approvals when new commits are pushed
   ☑ Require review from Code Owners: ☐ (optional)
 
 ☑ Require status checks to pass before merging
   ☑ Require branches to be up to date before merging
   
-  Required status checks (add these):
-    - Code Quality
-    - Unit Tests (Python 3.11)
-    - Unit Tests (Python 3.12)
-    - Build Validation
-    - Dockerfile & YAML Linting
-    - Dependency Security
-    - Security Best Practices
-    - CI Summary
+  Required status checks (add these exact names):
+    - CI Summary              (from ci.yml)
+    - Security Summary        (from security.yml)
+    - PR Validation Summary   (from docker-pr-validation.yml)
+  
+  Note: These are the summary jobs that depend on all other checks passing.
 
 ☑ Require conversation resolution before merging
 
-☑ Require linear history (recommended)
+☑ Require linear history (recommended for forensic audit trail)
 
 ☑ Do not allow bypassing the above settings
   ☐ Allow specific actors to bypass (optional - for emergencies only)
 
 ☐ Restrict who can push to matching branches (optional)
 
-☑ Allow force pushes: ☐ DISABLED
-☑ Allow deletions: ☐ DISABLED
+☑ Allow force pushes: ☐ DISABLED (protects git history)
+☑ Allow deletions: ☐ DISABLED (prevents branch deletion)
 ```
 
 ---
 
-## 🔄 Workflow Dependencies
+## 🔄 Workflow Architecture
 
-### CI Workflow → Docker Workflow Flow
+### New Modular Workflow Structure
+
+The repository now uses **4 separate focused workflows** instead of one monolithic CI:
+
+#### 1. **ci.yml** - Code Quality & Tests (~5 min)
+- Ruff linting & formatting
+- MyPy type checking  
+- Pytest with coverage (Python 3.11 & 3.12)
+- YAML validation
+- **Runs on:** PR + Main push
+
+#### 2. **security.yml** - Vulnerability Scanning (~3 min)
+- Bandit (Python security)
+- pip-audit & Safety (dependency vulnerabilities)
+- Hadolint (Dockerfile security)
+- TruffleHog (secret scanning)
+- **Runs on:** PR + Main push + Daily schedule
+
+#### 3. **docker-pr-validation.yml** - Build Validation (~12 min)
+- Single-arch Docker build (linux/amd64)
+- Health check tests (/healthz, /readyz)
+- Multi-arch build verification
+- Trivy security scan
+- **Runs on:** PR only
+- **Does NOT publish images**
+
+#### 4. **docker-publish.yml** - Production Build (~20 min)
+- Multi-arch builds (amd64, arm64, arm/v7)
+- SBOM generation (SPDX, CycloneDX)
+- Image signing with Cosign (keyless)
+- Provenance attestation
+- Push to Docker Hub
+- Full Trivy scans
+- **Runs on:** Main push + Git tags only
+
+### Workflow Execution Flow
 
 ```mermaid
 graph TD
-    A[PR Created/Updated] --> B[CI Workflow Triggered]
-    B --> C{All CI Jobs Pass?}
-    C -->|Yes| D[PR Can Be Merged]
-    C -->|No| E[PR Blocked]
-    D --> F[Merge to Main]
-    F --> G[CI Workflow Runs Again]
-    G --> H{CI Passes on Main?}
-    H -->|Yes| I[Docker Workflow Triggered]
-    H -->|No| J[Docker Workflow Blocked]
-    I --> K[Build & Publish Images]
+    A[PR Created/Updated] --> B[ci.yml]
+    A --> C[security.yml]
+    A --> D[docker-pr-validation.yml]
+    
+    B --> E{All Jobs Pass?}
+    C --> E
+    D --> E
+    
+    E -->|Yes| F[PR Can Be Merged]
+    E -->|No| G[PR Blocked]
+    
+    F --> H[Merge to Main]
+    H --> I[ci.yml on Main]
+    H --> J[security.yml on Main]
+    
+    I --> K{Both Pass?}
+    J --> K
+    
+    K -->|Yes| L[docker-publish.yml]
+    K -->|No| M[No Docker Build]
+    
+    L --> N[Build & Publish Images]
+    N --> O[Sign Images + Attach SBOM]
 ```
 
-### Workflow Trigger Logic
+### Benefits of This Architecture
 
-**Docker Build & Publish Workflow** (`docker-publish.yml`) is triggered by:
+**For Pull Requests:**
+- ✅ Fast parallel feedback (~12 min total)
+- ✅ Clear separation of concerns
+- ✅ Build validation without publishing
+- ✅ Security checks before merge
 
-1. **Push to main** - After merge
-2. **Tag creation** (`v*`) - For releases
-3. **Pull requests** - For testing (no push)
-4. **Workflow run completion** - When CI workflow completes successfully
-5. **Manual dispatch** - Emergency override
+**For Main Branch:**
+- ✅ Production builds only after all checks pass
+- ✅ No wasted Docker builds on PRs
+- ✅ Complete forensic audit trail
+- ✅ SBOM and signatures for compliance
 
-**Critical**: The `verify-ci` job ensures CI has passed before proceeding.
+**For Forensic Software:**
+- ✅ Every image traceable to source commit
+- ✅ SBOM lists all dependencies
+- ✅ Cryptographic signatures verify integrity
+- ✅ Provenance attestation proves build source
 
 ---
 
-## 🔍 CI Status Verification
+## 🔍 Workflow Gating Strategy
 
-### Job: `verify-ci`
+### How CI Gating Works
 
-This job runs **before all other Docker workflow jobs** and verifies:
+**Branch Protection** enforces that all required status checks pass before allowing merge:
 
-#### For `workflow_run` events (CI completion):
-```yaml
-- Checks: github.event.workflow_run.conclusion == 'success'
-- Fails if: CI workflow did not succeed
-- Result: Blocks entire Docker workflow if CI failed
-```
+1. **CI Summary** - Must pass (from ci.yml)
+2. **Security Summary** - Must pass (from security.yml)  
+3. **PR Validation Summary** - Must pass (from docker-pr-validation.yml)
 
-#### For `push` events (direct to main):
-```yaml
-- Queries: GitHub API for CI workflow status
-- Waits: 10 seconds for CI to initialize
-- Checks: All CI workflow runs for the commit
-- Fails if: Any CI run failed
-- Warns if: CI not found (race condition)
-```
+Each summary job only succeeds if **all** its dependent jobs pass.
 
-#### For `pull_request` and `workflow_dispatch`:
-```yaml
-- Skipped: PRs run tests independently
-- Skipped: Manual triggers allow override (emergencies)
-```
+### Docker Publish Gating
+
+The `docker-publish.yml` workflow:
+- ✅ Only triggered by **main branch push** or **git tags**
+- ✅ Never runs on PRs (no wasted builds)
+- ✅ Relies on GitHub branch protection (CI must pass before merge allowed)
+- ✅ Includes verify-ci job as safety check
 
 ---
 
-## 🎯 Required CI Checks
+## 🎯 Required Checks Breakdown
 
-These checks **must pass** before merging to `main`:
+### Workflow: ci.yml (Code Quality & Tests)
 
-### 1. Code Quality
-- **Job**: `code-quality`
-- **Checks**: Ruff linting, Black formatting, MyPy type checking
+**Must Pass Before Merge:**
+
+#### 1. Code Quality Job
+- **Checks**: Ruff linting, Ruff formatting, MyPy type checking
 - **Duration**: ~2 minutes
 - **Failure**: Blocks merge
 
-### 2. Unit Tests (Python 3.11 & 3.12)
-- **Job**: `tests` (matrix)
+#### 2. Unit Tests (Python 3.11 & 3.12)
+- **Jobs**: Matrix across Python versions
 - **Checks**: pytest with coverage, Codecov upload
 - **Duration**: ~3 minutes per version
 - **Failure**: Blocks merge
 
-### 3. Dependency Security
-- **Job**: `dependency-security`
-- **Checks**: pip-audit for vulnerable dependencies
+#### 3. YAML Linting
+- **Checks**: yamllint on workflow files
+- **Duration**: ~1 minute
+- **Failure**: Blocks merge
+
+#### 4. CI Summary
+- **Checks**: Aggregates all ci.yml job results
+- **Duration**: ~10 seconds
+- **Failure**: Blocks merge if any ci.yml job failed
+
+### Workflow: security.yml (Vulnerability Scanning)
+
+**Must Pass Before Merge:**
+
+#### 1. Code Security (Bandit)
+- **Checks**: Python code security issues
+- **Duration**: ~1 minute
+- **Failure**: Blocks merge
+
+#### 2. Dependency Security
+- **Checks**: pip-audit & Safety for vulnerable dependencies
+- **Duration**: ~1 minute
+- **Failure**: Blocks merge
+
+#### 3. Dockerfile Security (Hadolint)
+- **Checks**: Dockerfile best practices and security
+- **Duration**: ~1 minute
+- **Failure**: Blocks merge
+
+#### 4. Secret Scanning
+- **Checks**: TruffleHog for exposed secrets
 - **Duration**: ~1 minute
 - **Failure**: Warning (doesn't block, but should be reviewed)
 
-### 4. Dockerfile & YAML Linting
-- **Job**: `dockerfile-lint`
-- **Checks**: Hadolint, yamllint
-- **Duration**: ~1 minute
-- **Failure**: Warning (doesn't block currently)
+#### 5. Security Summary
+- **Checks**: Aggregates all security.yml job results
+- **Duration**: ~10 seconds
+- **Failure**: Blocks merge if any security job failed
 
-### 5. Build Validation
-- **Job**: `build-validation`
-- **Checks**: Docker build, smoke tests, multi-arch capability
+### Workflow: docker-pr-validation.yml (Build Validation)
+
+**Must Pass Before Merge:**
+
+#### 1. Build & Test (AMD64)
+- **Checks**: Docker build, health checks (/healthz, /readyz), multi-arch capability
 - **Duration**: ~8 minutes
 - **Failure**: Blocks merge
 
-### 6. Security Best Practices
-- **Job**: `security-checks`
-- **Checks**: Bandit, TruffleHog (secrets detection)
-- **Duration**: ~2 minutes
-- **Failure**: Warning (doesn't block, but should be reviewed)
+#### 2. Trivy Security Scan
+- **Checks**: Container image vulnerabilities
+- **Duration**: ~3 minutes
+- **Failure**: Blocks merge if CRITICAL vulnerabilities found
 
-### 7. CI Summary
-- **Job**: `ci-summary`
-- **Checks**: Aggregates all job results
+#### 3. PR Validation Summary
+- **Checks**: Aggregates all docker-pr-validation.yml job results
 - **Duration**: ~10 seconds
-- **Failure**: Never fails (informational)
+- **Failure**: Blocks merge if any validation job failed
 
 ---
 
@@ -176,81 +252,124 @@ These checks **must pass** before merging to `main`:
 ```bash
 1. Developer creates PR
    ↓
-2. CI workflow runs automatically
-   ├─ Code Quality ✅
-   ├─ Tests (3.11) ✅
-   ├─ Tests (3.12) ✅
-   ├─ Security ✅
-   ├─ Dockerfile Lint ✅
-   ├─ Build Validation ✅
-   └─ CI Summary ✅
+2. Three workflows run in PARALLEL:
+   ├─ ci.yml (~5 min)
+   │  ├─ Code Quality ✅
+   │  ├─ Tests (3.11) ✅
+   │  ├─ Tests (3.12) ✅
+   │  └─ YAML Lint ✅
+   │
+   ├─ security.yml (~3 min)
+   │  ├─ Bandit ✅
+   │  ├─ pip-audit ✅
+   │  ├─ Hadolint ✅
+   │  └─ Secret Scan ✅
+   │
+   └─ docker-pr-validation.yml (~12 min)
+      ├─ Build & Test ✅
+      └─ Trivy Scan ✅
    ↓
-3. Docker workflow runs (test mode, no push)
-   └─ Quick scan (AMD64 only)
+3. Total time: ~12 minutes (parallel execution)
    ↓
-4. All checks green → "Merge" button enabled
+4. All 3 summary jobs pass:
+   ├─ CI Summary ✅
+   ├─ Security Summary ✅
+   └─ PR Validation Summary ✅
    ↓
-5. Maintainer merges PR
+5. "Merge" button ENABLED
    ↓
-6. CI workflow runs on main
+6. Maintainer merges PR
    ↓
-7. [If CI passes] Docker workflow triggered
+7. ci.yml + security.yml run on main
+   ↓
+8. Both pass → docker-publish.yml triggered
    ├─ verify-ci job ✅
-   ├─ Full scan (3 platforms)
+   ├─ Multi-arch builds (amd64, arm64, arm/v7)
+   ├─ SBOM generation
+   ├─ Image signing
+   ├─ Full Trivy scans
    └─ Push to Docker Hub
 ```
 
-### Scenario 2: CI Fails on PR
+### Scenario 2: Tests Fail on PR
 
 ```bash
 1. Developer creates PR
    ↓
-2. CI workflow runs
-   ├─ Code Quality ✅
-   ├─ Tests (3.11) ❌ FAILED
-   └─ ... (other jobs)
+2. Workflows run
+   ├─ ci.yml
+   │  ├─ Code Quality ✅
+   │  └─ Tests (3.11) ❌ FAILED
+   ├─ security.yml ✅
+   └─ docker-pr-validation.yml ✅
    ↓
-3. "Merge" button DISABLED
+3. CI Summary ❌ FAILED
    ↓
-4. Developer fixes tests, pushes new commit
+4. "Merge" button DISABLED
    ↓
-5. CI runs again...
+5. Developer fixes tests, pushes commit
+   ↓
+6. Workflows run again
    └─ All checks ✅
    ↓
-6. "Merge" button ENABLED
+7. "Merge" button ENABLED
 ```
 
-### Scenario 3: Release Tag Created
+### Scenario 3: Security Vulnerability Found
+
+```bash
+1. Developer creates PR
+   ↓
+2. security.yml runs
+   ├─ Bandit ✅
+   ├─ pip-audit ✅
+   ├─ Hadolint ❌ CRITICAL issue found
+   └─ Secret Scan ✅
+   ↓
+3. Security Summary ❌ FAILED
+   ↓
+4. "Merge" button DISABLED
+   ↓
+5. Developer fixes Dockerfile, updates PR
+   ↓
+6. security.yml runs again
+   └─ All checks ✅
+   ↓
+7. "Merge" button ENABLED
+```
+
+### Scenario 4: Release Tag Created
 
 ```bash
 1. Maintainer creates tag: v0.2025-10-0.1.0
    ↓
 2. Tag pushed to GitHub
    ↓
-3. CI workflow triggered (if configured)
-   └─ Runs all checks on tag
-   ↓
-4. Docker workflow triggered
-   ├─ verify-ci checks CI status ✅
-   ├─ Full scan (3 platforms)
-   ├─ Build multi-arch images
-   ├─ Push to Docker Hub
-   └─ Create GitHub Release
+3. docker-publish.yml triggered by tag
+   ├─ verify-ci job ✅ (checks main branch CI)
+   ├─ Multi-arch builds
+   ├─ SBOM generation
+   ├─ Image signing
+   ├─ Version tags: v0.2025-10-0.1.0, latest
+   ├─ Full Trivy scans
+   └─ Push to Docker Hub
 ```
 
-### Scenario 4: Emergency Manual Override
+### Scenario 5: Monthly SOLVE-IT Update
 
 ```bash
-1. Critical hotfix needed, CI has known flaky test
+1. Monthly cron trigger (1st of month, 3 AM UTC)
    ↓
-2. Maintainer uses workflow_dispatch
-   └─ Manually trigger Docker workflow
+2. docker-monthly.yml runs
+   ├─ Check SOLVE-IT latest release
+   ├─ Compare with published version
+   └─ New version found? v0.2025-11
    ↓
-3. verify-ci job is SKIPPED (manual override)
-   ↓
-4. Docker build proceeds
-   ↓
-⚠️ Use sparingly! Only for emergencies.
+3. Calls docker-publish.yml workflow
+   ├─ Create new release tag
+   ├─ Build with new SOLVE-IT data
+   ├─ Full security scans
+   └─ Publish
 ```
 
 ---
@@ -361,11 +480,9 @@ cat .github/workflows/docker-publish.yml | grep -A5 "verify-ci"
    ☑ Require status checks to pass before merging
    ☑ Require branches to be up to date before merging
 5. In "Status checks that are required", search and add:
-   - Code Quality
-   - Unit Tests (Python 3.11)
-   - Unit Tests (Python 3.12)
-   - Build Validation
-   - Dockerfile & YAML Linting
+   - CI Summary
+   - Security Summary
+   - PR Validation Summary
 6. Click "Create" or "Save changes"
 ```
 
@@ -375,9 +492,11 @@ cat .github/workflows/docker-publish.yml | grep -A5 "verify-ci"
 # Ensure workflows are in place
 ls -la .github/workflows/
 # Should show:
-# - ci.yml (CI - Code Quality & Tests)
-# - docker-publish.yml (Docker Build and Publish)
-# - docker-monthly.yml (Monthly builds)
+# - ci.yml (Code Quality & Tests)
+# - security.yml (Vulnerability Scanning)
+# - docker-pr-validation.yml (PR Build Validation)
+# - docker-publish.yml (Production Build & Publish)
+# - docker-monthly.yml (Smart Monthly Rebuilds)
 ```
 
 ### 3. Test the Setup
@@ -466,15 +585,116 @@ on:
 
 ---
 
+## 🔐 Forensic Software Features
+
+### SBOM (Software Bill of Materials)
+
+Every published Docker image includes an SBOM for complete dependency transparency:
+
+**Formats Generated:**
+- **SPDX JSON** - Industry standard, ISO/IEC 5962:2021 compliant
+- **CycloneDX JSON** - OWASP standard for software supply chain
+- **Syft JSON** - Anchore's detailed format
+
+**How to Access:**
+```bash
+# Download SBOM from GitHub artifacts
+gh run download <run-id> --name sbom-<commit-sha>
+
+# View SBOM attached to image (requires cosign)
+cosign download sbom 3soos3/solve-it-mcp:latest
+
+# View SBOM in container
+docker run --rm 3soos3/solve-it-mcp:latest cat /sbom/sbom.spdx.json
+```
+
+**Use Cases:**
+- Compliance audits (GDPR, HIPAA, PCI-DSS)
+- Vulnerability tracking across fleet
+- License compliance verification
+- Evidence chain of custody
+
+### Image Signing with Cosign
+
+All images are cryptographically signed using **Sigstore Cosign** (keyless signing):
+
+**Verification:**
+```bash
+# Verify image signature
+cosign verify 3soos3/solve-it-mcp:latest \
+  --certificate-identity-regexp=github \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+
+# Expected output:
+# ✓ Verified signature
+# ✓ Certificate identity matches
+# ✓ OIDC issuer matches
+```
+
+**Provenance:**
+```bash
+# View build provenance
+cosign download attestation 3soos3/solve-it-mcp:latest | jq
+
+# Shows:
+# - Source repository
+# - Commit SHA
+# - Build workflow
+# - Build timestamp
+# - Builder identity
+```
+
+**Forensic Benefits:**
+- **Integrity**: Prove image hasn't been tampered with
+- **Authenticity**: Verify image source and builder
+- **Non-repudiation**: Signatures are tied to GitHub identity
+- **Transparency**: Public Sigstore transparency log (Rekor)
+
+### Audit Trail
+
+Complete traceable history for every Docker image:
+
+**Image Tags Include:**
+- `sha-<commit>` - Exact source commit
+- `v<version>` - Release version
+- `latest` - Current stable
+
+**Metadata in Image Labels:**
+```bash
+docker inspect 3soos3/solve-it-mcp:latest | jq '.[0].Config.Labels'
+
+# Shows:
+# - org.opencontainers.image.created
+# - org.opencontainers.image.revision (git commit)
+# - org.opencontainers.image.source (repo URL)
+# - org.opencontainers.image.version
+```
+
+**CI/CD Artifacts:**
+- Workflow logs (retained 90 days)
+- Security scan results (SARIF format)
+- Test coverage reports
+- SBOM files
+
+**GitHub Audit:**
+- All commits signed/verified
+- PR reviews required
+- Branch protection enforced
+- Workflow runs logged
+
+---
+
 ## ✅ Checklist for New Repositories
 
 - [ ] Enable branch protection for `main`
-- [ ] Configure required status checks
-- [ ] Add CI workflow (ci.yml)
-- [ ] Add Docker workflow with verify-ci job (docker-publish.yml)
-- [ ] Test with a failing PR
-- [ ] Test with a passing PR
-- [ ] Verify Docker workflow waits for CI
+- [ ] Configure required status checks (CI Summary, Security Summary, PR Validation Summary)
+- [ ] Add all 4 workflows (ci, security, docker-pr-validation, docker-publish)
+- [ ] Set up Docker Hub secrets (DOCKERHUB_USERNAME, DOCKERHUB_TOKEN)
+- [ ] Test with a failing PR (verify blocked)
+- [ ] Test with a passing PR (verify can merge)
+- [ ] Verify Docker workflow only runs on main
+- [ ] Verify SBOM generation works
+- [ ] Verify image signing works
 - [ ] Document bypass procedures
 - [ ] Set up monitoring/alerts
 - [ ] Add workflow badges to README
@@ -485,18 +705,30 @@ on:
 
 **What This Setup Provides**:
 - ✅ No broken code can be merged to main
-- ✅ No Docker images built from failing CI
+- ✅ No Docker images built from failing checks
+- ✅ Fast parallel feedback (~12 min for PRs)
 - ✅ Automated quality gates at every step
-- ✅ Clear feedback to developers
-- ✅ Emergency override capability
-- ✅ Full audit trail of all changes
+- ✅ Clear separation of concerns
+- ✅ Complete forensic audit trail
+- ✅ SBOM for compliance
+- ✅ Cryptographic image signatures
+- ✅ Provenance attestation
+
+**Forensic Software Benefits**:
+- ✅ Every image traceable to source commit
+- ✅ Complete dependency transparency (SBOM)
+- ✅ Cryptographic integrity verification
+- ✅ Non-repudiatable build provenance
+- ✅ Compliance-ready audit trail
+- ✅ Court-defensible evidence chain
 
 **Maintenance Required**:
-- Review status check names when CI jobs change
+- Review status check names when workflows change
 - Update branch protection rules if adding new critical checks
-- Monitor for false positives (flaky tests)
+- Monitor security scans for new vulnerabilities
+- Rotate Docker Hub tokens annually
 - Document any bypass usage
 
 **Questions or Issues?**
 - File an issue: https://github.com/3soos3/solve-it-mcp/issues
-- Contact: 3soos3@users.noreply.github.com
+- Workflow docs: `.github/workflows/README.md`

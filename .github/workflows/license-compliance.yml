@@ -1,0 +1,153 @@
+name: License Compliance
+
+on:
+  pull_request:
+    paths:
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/license-compliance.yml'
+  push:
+    branches: [main]
+  schedule:
+    # Weekly on Sunday at 1 AM UTC
+    - cron: '0 1 * * 0'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  check-licenses:
+    name: Check Dependency Licenses
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install pip-licenses
+          pip install -r requirements.txt
+
+      - name: Scan licenses
+        id: scan
+        run: |
+          echo "## Dependency Licenses" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          pip-licenses --format=markdown --order=license >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          # Save to files
+          pip-licenses --format=json --output-file=licenses.json
+          pip-licenses --format=markdown --output-file=licenses.md
+
+      - name: Check for GPL/AGPL (incompatible with MIT)
+        run: |
+          echo "Checking for incompatible licenses..."
+
+          if grep -i "gpl\|agpl" licenses.json; then
+            echo "::error::Found GPL/AGPL licensed dependency - incompatible with MIT"
+            echo "⚠️ GPL/AGPL dependencies found:" >> $GITHUB_STEP_SUMMARY
+            grep -i "gpl\|agpl" licenses.json >> $GITHUB_STEP_SUMMARY || true
+            exit 1
+          else
+            echo "::notice::✅ No incompatible licenses found"
+            echo "✅ All licenses compatible with MIT" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload license report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: |
+            licenses.json
+            licenses.md
+
+  generate-notice:
+    name: Generate NOTICE File
+    runs-on: ubuntu-latest
+    needs: check-licenses
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          pip install pip-licenses
+          pip install -r requirements.txt
+
+      - name: Generate NOTICE file
+        run: |
+          {
+            echo "THIRD-PARTY SOFTWARE NOTICES AND INFORMATION"
+            echo "======================================================================"
+            echo ""
+            echo "This project incorporates components from third-party projects."
+            echo "Original copyright notices and licenses are reproduced below."
+            echo ""
+            echo "======================================================================"
+            echo ""
+          } > NOTICE
+
+          pip-licenses --format=plain-vertical >> NOTICE
+
+          echo "" >> NOTICE
+          echo "======================================================================" >> NOTICE
+          echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> NOTICE
+
+      - name: Check if NOTICE changed
+        id: notice-changed
+        run: |
+          git add NOTICE
+          if git diff --staged --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit updated NOTICE
+        if: steps.notice-changed.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: Update NOTICE file with dependency licenses [skip ci]"
+          git push
+
+  license-summary:
+    name: License Summary
+    runs-on: ubuntu-latest
+    needs: [check-licenses, generate-notice]
+    if: always()
+    steps:
+      - name: Summary
+        run: |
+          echo "## License Compliance Check Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.check-licenses.result }}" = "success" ]; then
+            echo "- License Scan: ✅ Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- License Scan: ❌ Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.generate-notice.result }}" = "success" ]; then
+            echo "- NOTICE Update: ✅ Updated" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.generate-notice.result }}" = "skipped" ]; then
+            echo "- NOTICE Update: ⏭️ Skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- NOTICE Update: ❌ Failed" >> $GITHUB_STEP_SUMMARY
+          fi
