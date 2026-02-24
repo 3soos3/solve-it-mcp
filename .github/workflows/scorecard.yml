@@ -23,7 +23,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.1
         with:
           persist-credentials: false
 
@@ -36,12 +36,12 @@ jobs:
           publish_results: false
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3.24.6
         with:
           sarif_file: results.sarif
 
       - name: Upload results as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.1
         with:
           name: scorecard-results
           path: results.sarif

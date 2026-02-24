@@ -1,9 +1,12 @@
 # SOLVE-IT MCP Server
 
+[![Release](https://img.shields.io/github/v/release/3soos3/solve-it-mcp?sort=semver)](https://github.com/3soos3/solve-it-mcp/releases/latest)
 [![CI - Code Quality](https://github.com/3soos3/solve-it-mcp/workflows/CI%20-%20Code%20Quality%20%26%20Tests/badge.svg)](https://github.com/3soos3/solve-it-mcp/actions/workflows/ci.yml)
 [![Security Scanning](https://github.com/3soos3/solve-it-mcp/workflows/Security%20-%20Vulnerability%20Scanning/badge.svg)](https://github.com/3soos3/solve-it-mcp/actions/workflows/security.yml)
 [![License Compliance](https://github.com/3soos3/solve-it-mcp/workflows/License%20Compliance/badge.svg)](https://github.com/3soos3/solve-it-mcp/actions/workflows/license-compliance.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/3soos3/solve-it-mcp/badge)](https://securityscorecards.dev/viewer/?uri=github.com/3soos3/solve-it-mcp)
+[![OpenSSF Scorecard](https://github.com/3soos3/solve-it-mcp/workflows/OpenSSF%20Scorecard/badge.svg)](https://github.com/3soos3/solve-it-mcp/security/code-scanning)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/3soos3/solve-it-mcp/graphs/commit-activity)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org)
 [![Docker Pulls](https://img.shields.io/docker/pulls/3soos3/solve-it-mcp)](https://hub.docker.com/r/3soos3/solve-it-mcp)
 [![Docker Image Size](https://img.shields.io/docker/image-size/3soos3/solve-it-mcp/latest)](https://hub.docker.com/r/3soos3/solve-it-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -19,7 +22,7 @@ SOLVE-IT is a systematic digital forensics knowledge base inspired by MITRE ATT&
 - **📊 OpenTelemetry Observability**: Built-in metrics, tracing, and logging
 - **⚡ High Performance**: Optimized shared knowledge base, sub-second response times
 - **🔄 Dual Transport Modes**: HTTP/SSE for Kubernetes, stdio for desktop clients
-- **📦 Minimal Footprint**: 181MB Alpine-based image (45% smaller than alternatives)
+- **📦 Minimal Footprint**: 60MB Alpine-based image (highly optimized)
 - **☸️ Kubernetes Native**: Production-grade Helm charts with health checks and auto-scaling
 
 ## What is SOLVE-IT?

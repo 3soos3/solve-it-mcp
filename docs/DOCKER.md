@@ -92,7 +92,7 @@ Docker automatically pulls the correct architecture for your platform.
 
 ### Image Size
 
-- **Production image**: ~200 MB (multi-stage build, optimized)
+- **Production image**: ~60 MB (multi-stage build, Alpine-optimized)
 - **Development image**: ~450 MB (includes dev tools)
 
 ---

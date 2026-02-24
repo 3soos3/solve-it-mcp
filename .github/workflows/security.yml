@@ -24,12 +24,14 @@ jobs:
   code-security:
     name: Python Code Security
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.1
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -46,7 +48,7 @@ jobs:
 
       - name: Upload Bandit results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.1
         with:
           name: bandit-report
           path: bandit-report.json
@@ -55,12 +57,14 @@ jobs:
   dependency-security:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.1
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -87,14 +91,14 @@ jobs:
 
       - name: Upload pip-audit results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.1
         with:
           name: pip-audit-results
           path: pip-audit.json
 
       - name: Upload Safety results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.1
         with:
           name: safety-results
           path: safety-report.json
@@ -103,9 +107,12 @@ jobs:
   dockerfile-security:
     name: Dockerfile Security Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.1
 
       - name: Run Hadolint (Dockerfile linter)
         uses: hadolint/hadolint-action@v3.1.0
@@ -118,7 +125,7 @@ jobs:
 
       - name: Upload Hadolint results to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3.24.6
         with:
           sarif_file: hadolint.sarif
           category: hadolint
@@ -134,7 +141,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.1
         with:
           fetch-depth: 0
 
@@ -151,6 +158,8 @@ jobs:
   security-summary:
     name: Security Summary
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [code-security, dependency-security, dockerfile-security, secret-scan]
     if: always()
     steps:
