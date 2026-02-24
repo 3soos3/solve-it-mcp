@@ -1,13 +1,11 @@
 name: Docker - Build and Publish
 
 # Production Docker image build and publish
-# Only runs on main branch after CI and security checks pass
+# Only runs on tagged releases (not on every main push)
 # Includes SBOM generation and image signing for forensic integrity
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -16,12 +14,6 @@ on:
         description: 'Additional tag to apply'
         required: false
         type: string
-  workflow_run:
-    workflows: ["CI - Code Quality & Tests"]
-    types:
-      - completed
-    branches:
-      - main
   workflow_call:
     inputs:
       solveit_version:
@@ -135,27 +127,34 @@ jobs:
           echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
 
           # Build tags for BOTH registries
-          DOCKERHUB_TAGS="${{ env.DOCKERHUB_REPO }}:sha-${GIT_COMMIT}"
-          GHCR_TAGS="${{ env.GHCR_REPO }}:sha-${GIT_COMMIT}"
+          # Only publish on tagged releases (not every main push)
+          DOCKERHUB_TAGS=""
+          GHCR_TAGS=""
 
-          # Add latest tag for main branch
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:latest"
-            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:latest"
-          fi
-
-          # Add version tag for git tags
+          # For tagged releases: version tag, latest tag, and SHA tag
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:v${VERSION}"
+            # Version tag (e.g., v0.2025-10-0.1.0)
+            DOCKERHUB_TAGS="${{ env.DOCKERHUB_REPO }}:v${VERSION}"
+            GHCR_TAGS="${{ env.GHCR_REPO }}:v${VERSION}"
+            
+            # Latest tag
             DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:latest"
-            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:v${VERSION}"
             GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:latest"
+            
+            # SHA tag (for forensic reproducibility)
+            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:sha-${GIT_COMMIT}"
+            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:sha-${GIT_COMMIT}"
           fi
 
-          # Add custom tag if provided
+          # Add custom tag if provided (manual workflow_dispatch)
           if [[ -n "${{ github.event.inputs.tag }}" ]]; then
-            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:${{ github.event.inputs.tag }}"
-            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:${{ github.event.inputs.tag }}"
+            if [[ -z "$DOCKERHUB_TAGS" ]]; then
+              DOCKERHUB_TAGS="${{ env.DOCKERHUB_REPO }}:${{ github.event.inputs.tag }}"
+              GHCR_TAGS="${{ env.GHCR_REPO }}:${{ github.event.inputs.tag }}"
+            else
+              DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:${{ github.event.inputs.tag }}"
+              GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:${{ github.event.inputs.tag }}"
+            fi
           fi
 
           # Combine all tags for build step
