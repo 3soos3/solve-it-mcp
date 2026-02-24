@@ -515,9 +515,32 @@ python3 -m pytest solve_it_mcp/tests/unit/ -v
 - Use `list_available_mappings` to see available files
 - Ensure mapping files are in `data/` directory
 
+## Attribution
+
+This project is a **fork** of the original [solve_it_mcp](https://github.com/CKE-Proto/solve_it_mcp) created by **CKE-Proto** (L3K-A).
+
+### Original Author
+- **Repository**: https://github.com/CKE-Proto/solve_it_mcp
+- **Author**: CKE-Proto (L3K-A)
+- **Original License**: MIT
+
+### This Fork
+This fork has been significantly enhanced with production-ready features:
+- Enterprise CI/CD pipelines with parallel execution
+- Multi-architecture Docker support (amd64, arm64, arm/v7)
+- Security scanning and license compliance automation
+- Dual registry publishing (Docker Hub + GHCR)
+- SBOM generation and cryptographic image signing
+- Comprehensive documentation and forensic verification support
+
+All enhancements maintain the original MIT license and proper attribution.
+
 ## License
 
 MIT License - See LICENSE file for details.
+
+**Original work** Copyright (c) 2025 L3K-A (CKE-Proto)  
+**Modifications and enhancements** Copyright (c) 2026 3soos3
 
 ## Contributing
 
