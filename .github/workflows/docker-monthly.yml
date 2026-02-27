@@ -1,4 +1,4 @@
-name: Monthly Docker Rebuild
+name: Docker - Monthly Rebuild
 
 # Smart monthly rebuild: Only rebuilds if SOLVE-IT dataset version is newer than published image
 # This keeps images up-to-date with security patches and dependency updates

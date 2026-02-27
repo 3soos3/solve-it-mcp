@@ -1,8 +1,8 @@
-name: Zenodo - Publish Release with DOI
+name: Zenodo - DOI Publication
 
 # Creates comprehensive GitHub Release for forensic software
 # Triggers Zenodo DOI creation for stable releases
-# Updates CITATION.cff and README with DOI
+# Updates CITATION.cff and README with DOI after publication
 
 on:
   workflow_call:

@@ -1,4 +1,4 @@
-name: License Compliance
+name: License Compliance Check
 
 on:
   pull_request:
@@ -155,7 +155,8 @@ jobs:
 
   license-summary:
     name: License Summary
-    runs-on: ubuntu-latest    permissions:
+    runs-on: ubuntu-latest
+    permissions:
       contents: read
     needs: [check-licenses, generate-notice]
     if: always()

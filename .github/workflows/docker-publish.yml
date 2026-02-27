@@ -1,6 +1,6 @@
-name: Docker - Build and Publish
+name: Docker - Build & Publish to Registries
 
-# Production Docker image build and publish
+# Production Docker image build and publish to GHCR and Docker Hub
 # Only runs on tagged releases (not on every main push)
 # Includes SBOM generation and image signing for forensic integrity
 
@@ -136,11 +136,11 @@ jobs:
             # Version tag (e.g., v0.2025-10-0.1.0)
             DOCKERHUB_TAGS="${{ env.DOCKERHUB_REPO }}:v${VERSION}"
             GHCR_TAGS="${{ env.GHCR_REPO }}:v${VERSION}"
-            
+
             # Latest tag
             DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:latest"
             GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:latest"
-            
+
             # SHA tag (for forensic reproducibility)
             DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:sha-${GIT_COMMIT}"
             GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:sha-${GIT_COMMIT}"
@@ -416,24 +416,24 @@ jobs:
       - name: Runtime health checks
         run: |
           echo "::group::Starting container for health validation"
-          
+
           # Start container
           docker run -d --name healthcheck-test \
             -e MCP_TRANSPORT=http \
             -e HTTP_PORT=8000 \
             -p 8000:8000 \
             ghcr.io/${{ github.repository_owner }}/solve-it-mcp:sha-${{ steps.meta.outputs.git_commit }}
-          
+
           # Wait for startup
           echo "Waiting 15 seconds for container startup..."
           sleep 15
-          
+
           echo "::endgroup::"
 
       - name: Health endpoint validation
         run: |
           echo "::group::Testing health endpoints"
-          
+
           # Test /healthz
           if curl -f http://localhost:8000/healthz; then
             echo "::notice::✅ /healthz endpoint responding"
@@ -442,7 +442,7 @@ jobs:
             docker logs healthcheck-test
             exit 1
           fi
-          
+
           # Test /readyz
           if curl -f http://localhost:8000/readyz; then
             echo "::notice::✅ /readyz endpoint responding"
@@ -451,32 +451,32 @@ jobs:
             docker logs healthcheck-test
             exit 1
           fi
-          
+
           echo "::endgroup::"
 
       - name: MCP functionality validation
         run: |
           echo "::group::Testing MCP functionality"
-          
+
           # Test tools list
           TOOLS_COUNT=$(curl -s -X POST http://localhost:8000/mcp/v1/messages \
             -H "Content-Type: application/json" \
             -d '{"method":"tools/list"}' | jq '.tools | length')
-          
+
           if [ "$TOOLS_COUNT" -gt 20 ]; then
             echo "::notice::✅ MCP tools available: ${TOOLS_COUNT}"
           else
             echo "::error::Expected >20 MCP tools, found: ${TOOLS_COUNT}"
             exit 1
           fi
-          
+
           # Test technique query (validates SOLVE-IT data loaded)
           TECHNIQUE_RESULT=$(curl -s -X POST http://localhost:8000/mcp/v1/messages \
             -H "Content-Type: application/json" \
             -d '{"method":"tools/call","params":{"name":"get_technique","arguments":{"technique_id":"T1001"}}}')
-          
+
           TECHNIQUE_ID=$(echo "$TECHNIQUE_RESULT" | jq -r '.result.id // empty')
-          
+
           if [ "$TECHNIQUE_ID" = "T1001" ]; then
             echo "::notice::✅ SOLVE-IT data loaded correctly"
           else
@@ -484,17 +484,17 @@ jobs:
             echo "Response: $TECHNIQUE_RESULT"
             exit 1
           fi
-          
+
           echo "::endgroup::"
 
       - name: Data integrity validation
         run: |
           echo "::group::Validating SOLVE-IT data integrity"
-          
+
           # Verify SOLVE-IT version in health response
           HEALTH_RESPONSE=$(curl -s http://localhost:8000/healthz)
           echo "Health response: $HEALTH_RESPONSE"
-          
+
           # Check that container has no errors in logs
           echo "Checking container logs for errors..."
           if docker logs healthcheck-test 2>&1 | grep -qi "error\|exception\|failed" | grep -v "test"; then
@@ -503,7 +503,7 @@ jobs:
           else
             echo "::notice::✅ No critical errors in container logs"
           fi
-          
+
           echo "::endgroup::"
 
       - name: Cleanup
@@ -544,13 +544,13 @@ jobs:
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
-          
+
           # Detect SOLVE-IT version (reuse logic from earlier job)
           SOLVEIT_VERSION=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // empty' | sed 's/^v//')
           if [ -z "$SOLVEIT_VERSION" ]; then
             SOLVEIT_VERSION="0.2025-10"
           fi
-          
+
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
@@ -569,7 +569,7 @@ jobs:
                 use_sandbox: 'false'
               }
             });
-            
+
             core.notice('✅ Triggered Zenodo publish workflow for stable release');
             core.notice('Release: ${{ steps.meta.outputs.version }}');
             core.notice('SOLVE-IT Version: ${{ steps.meta.outputs.solveit_version }}');

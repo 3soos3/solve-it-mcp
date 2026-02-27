@@ -1,6 +1,6 @@
-name: CodeQL - SAST
+name: CodeQL - Code Security Analysis
 
-# Static Application Security Testing using CodeQL
+# Static Application Security Testing (SAST) using CodeQL
 # Scans Python code for security vulnerabilities
 
 on:

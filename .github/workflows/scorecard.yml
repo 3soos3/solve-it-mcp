@@ -1,4 +1,4 @@
-name: OpenSSF Scorecard
+name: OpenSSF Scorecard - Security Rating
 
 on:
   branch_protection_rule:
@@ -36,7 +36,7 @@ jobs:
           publish_results: false
 
       - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@47b3d888fe66b639e431e59a813c7654b9f06e9b # v3.24.6
+        uses: github/codeql-action/upload-sarif@45580472a5bb82c4681c4ac726cfdb60060c2ee1 # v3.32.4
         with:
           sarif_file: results.sarif
 
