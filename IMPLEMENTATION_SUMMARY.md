@@ -103,11 +103,15 @@ v0.2025-11-1.0.0        # Major version
 v0.2025-10-0.1.0-rc.1   # Release candidate
 ```
 
-**Docker Tags** (available on both GHCR and Docker Hub):
-- `ghcr.io/3soos3/solve-it-mcp:v0.2025-10-0.1.0` (GHCR - Recommended)
-- `ghcr.io/3soos3/solve-it-mcp:latest` (GHCR - Recommended)
-- `ghcr.io/3soos3/solve-it-mcp:stable` (manual only)
-- `3soos3/solve-it-mcp:latest` (Docker Hub - Alternative)
+**Docker Tags** (available on both registries):
+- `3soos3/solve-it-mcp:v0.2025-10-0.1.0` (Docker Hub - For general users)
+- `3soos3/solve-it-mcp:latest` (Docker Hub - For general users)
+- `3soos3/solve-it-mcp:stable` (manual only)
+- `ghcr.io/3soos3/solve-it-mcp:latest` (GHCR - For CI/CD & compliance)
+
+**Registry Strategy:**
+- **Docker Hub**: Primary for external users (tracks real adoption metrics)
+- **GHCR**: Primary for CI/CD workflows and forensic compliance
 
 ---
 
@@ -266,8 +270,8 @@ git push origin v2025.10-0.1.0
 # 5. Monitor at: https://github.com/3soos3/solve_it_mcp/actions
 
 # 6. Verify:
-# - GHCR: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
-# - Docker Hub: https://hub.docker.com/r/3soos3/solve-it-mcp/tags
+# - Docker Hub (user-facing): https://hub.docker.com/r/3soos3/solve-it-mcp/tags
+# - GHCR (CI/CD): https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
 # - GitHub Release: https://github.com/3soos3/solve_it_mcp/releases
 # - Security tab: https://github.com/3soos3/solve_it_mcp/security
 ```
@@ -339,9 +343,13 @@ git push origin v2025.10-0.1.0
 
 - **GitHub Actions**: https://github.com/3soos3/solve_it_mcp/actions
 - **Security Tab**: https://github.com/3soos3/solve_it_mcp/security
-- **GHCR Packages**: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
-- **Docker Hub**: https://hub.docker.com/r/3soos3/solve-it-mcp
+- **Docker Hub** (external user metrics): https://hub.docker.com/r/3soos3/solve-it-mcp
+- **GHCR Packages** (CI/CD metrics): https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
 - **Release Page**: https://github.com/3soos3/solve_it_mcp/releases
+
+**Pull Stats Strategy:**
+- Docker Hub pulls = Real external user adoption (not inflated by CI/CD)
+- GHCR pulls = Mostly CI/CD automation + security-conscious users
 
 ---
 
