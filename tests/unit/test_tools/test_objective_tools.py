@@ -4,7 +4,8 @@ from unittest.mock import MagicMock, patch
 
 from conftest import assert_error_response, validate_json_response
 import pytest
-from solveit_mcp_server.tools.solveit_tools import (
+
+from tools.solveit_tools import (
     GetTechniquesForObjectiveParams,
     GetTechniquesForObjectiveTool,
     ListAvailableMappingsParams,

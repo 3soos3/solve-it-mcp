@@ -4,7 +4,8 @@ import os
 from unittest.mock import patch
 
 import pytest
-from solveit_mcp_server.utils.data_path import get_solve_it_data_path, validate_solve_it_data_path
+
+from utils.data_path import get_solve_it_data_path, validate_solve_it_data_path
 
 
 class TestGetSolveItDataPath:
@@ -14,9 +15,7 @@ class TestGetSolveItDataPath:
         """Test that environment variable takes precedence."""
         test_path = "/custom/solve-it/path"
         with patch.dict(os.environ, {"SOLVE_IT_DATA_PATH": test_path}):
-            with patch(
-                "solveit_mcp_server.utils.data_path.validate_solve_it_data_path", return_value=True
-            ):
+            with patch("utils.data_path.validate_solve_it_data_path", return_value=True):
                 result = get_solve_it_data_path()
                 assert result == test_path
 

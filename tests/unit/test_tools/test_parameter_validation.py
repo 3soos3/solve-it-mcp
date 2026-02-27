@@ -2,7 +2,8 @@
 
 from pydantic import ValidationError
 import pytest
-from solveit_mcp_server.tools.solveit_tools import (
+
+from tools.solveit_tools import (
     GetAllMitigationsWithFullDetailParams,
     GetAllMitigationsWithNameAndIdParams,
     GetAllTechniquesWithFullDetailParams,

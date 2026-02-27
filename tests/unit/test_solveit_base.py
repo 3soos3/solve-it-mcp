@@ -7,7 +7,8 @@ from unittest.mock import MagicMock, patch
 
 from conftest import validate_json_response
 import pytest
-from solveit_mcp_server.tools.solveit_base import SolveItBaseTool, ToolParams
+
+from tools.solveit_base import SolveItBaseTool, ToolParams
 
 
 class MockToolParams(ToolParams):
@@ -93,9 +94,7 @@ class TestDataPathResolution:
         custom_path = "/custom/data/path"
 
         with patch.object(MockSolveItBaseTool, "_init_knowledge_base"):
-            with patch(
-                "solveit_mcp_server.utils.data_path.validate_solve_it_data_path", return_value=True
-            ):
+            with patch("utils.data_path.validate_solve_it_data_path", return_value=True):
                 tool = MockSolveItBaseTool(custom_data_path=custom_path)
 
                 assert tool.data_path == custom_path
@@ -107,7 +106,7 @@ class TestDataPathResolution:
         with patch.object(MockSolveItBaseTool, "_init_knowledge_base"):
             with patch.dict(os.environ, {"SOLVE_IT_DATA_PATH": env_path}):
                 with patch(
-                    "solveit_mcp_server.utils.data_path.validate_solve_it_data_path",
+                    "utils.data_path.validate_solve_it_data_path",
                     return_value=True,
                 ):
                     tool = MockSolveItBaseTool()
@@ -121,11 +120,11 @@ class TestDataPathResolution:
         with patch.object(MockSolveItBaseTool, "_init_knowledge_base"):
             with patch.dict(os.environ, {}, clear=True):
                 with patch(
-                    "solveit_mcp_server.utils.data_path.get_solve_it_data_path",
+                    "utils.data_path.get_solve_it_data_path",
                     return_value=auto_path,
                 ):
                     with patch(
-                        "solveit_mcp_server.utils.data_path.validate_solve_it_data_path",
+                        "utils.data_path.validate_solve_it_data_path",
                         return_value=True,
                     ):
                         tool = MockSolveItBaseTool()
@@ -137,9 +136,7 @@ class TestDataPathResolution:
         invalid_path = "/invalid/path"
 
         with patch.object(MockSolveItBaseTool, "_init_knowledge_base"):
-            with patch(
-                "solveit_mcp_server.utils.data_path.validate_solve_it_data_path", return_value=False
-            ):
+            with patch("utils.data_path.validate_solve_it_data_path", return_value=False):
                 with pytest.raises(ValueError, match="Invalid SOLVE-IT data path"):
                     MockSolveItBaseTool(custom_data_path=invalid_path)
 
@@ -147,7 +144,7 @@ class TestDataPathResolution:
         """Test data path resolution with exception handling."""
         with patch.object(MockSolveItBaseTool, "_init_knowledge_base"):
             with patch(
-                "solveit_mcp_server.utils.data_path.get_solve_it_data_path",
+                "utils.data_path.get_solve_it_data_path",
                 side_effect=Exception("Test error"),
             ):
                 with pytest.raises(ValueError, match="SOLVE-IT data path resolution failed"):
