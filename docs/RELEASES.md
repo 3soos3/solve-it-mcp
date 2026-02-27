@@ -152,14 +152,14 @@ Total: ~24 minutes
 
 #### 6. Verify Release
 
-**Check Docker Hub:**
+**Check GHCR:**
 ```bash
-# Visit: https://hub.docker.com/r/3soos3/solve-it-mcp/tags
+# Visit: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
 
 # Should see:
-# - 3soos3/solve-it-mcp:v0.2025-10-0.1.0
-# - 3soos3/solve-it-mcp:latest
-# - 3soos3/solve-it-mcp:sha-abc1234
+# - ghcr.io/3soos3/solve-it-mcp:v0.2025-10-0.1.0
+# - ghcr.io/3soos3/solve-it-mcp:latest
+# - ghcr.io/3soos3/solve-it-mcp:sha-abc1234
 ```
 
 **Check GitHub Release:**
@@ -175,7 +175,7 @@ Total: ~24 minutes
 
 **Verify Multi-Arch:**
 ```bash
-docker manifest inspect 3soos3/solve-it-mcp:v0.2025-10-0.1.0
+docker manifest inspect ghcr.io/3soos3/solve-it-mcp:v0.2025-10-0.1.0
 
 # Should show manifests for:
 # - linux/amd64
@@ -186,10 +186,10 @@ docker manifest inspect 3soos3/solve-it-mcp:v0.2025-10-0.1.0
 **Test Image:**
 ```bash
 # Pull and test
-docker pull 3soos3/solve-it-mcp:v0.2025-10-0.1.0
+docker pull ghcr.io/3soos3/solve-it-mcp:v0.2025-10-0.1.0
 
 # Run locally
-docker run --rm -d -p 8000:8000 3soos3/solve-it-mcp:v0.2025-10-0.1.0
+docker run --rm -d -p 8000:8000 ghcr.io/3soos3/solve-it-mcp:v0.2025-10-0.1.0
 
 # Test health
 curl http://localhost:8000/healthz
