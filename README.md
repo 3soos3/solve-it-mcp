@@ -7,8 +7,8 @@
 [![OpenSSF Scorecard](https://github.com/3soos3/solve-it-mcp/workflows/OpenSSF%20Scorecard/badge.svg)](https://github.com/3soos3/solve-it-mcp/security/code-scanning)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/3soos3/solve-it-mcp/graphs/commit-activity)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org)
+[![GHCR Package](https://img.shields.io/badge/ghcr.io-solve--it--mcp-blue)](https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp)
 [![Docker Pulls](https://img.shields.io/docker/pulls/3soos3/solve-it-mcp)](https://hub.docker.com/r/3soos3/solve-it-mcp)
-[![Docker Image Size](https://img.shields.io/docker/image-size/3soos3/solve-it-mcp/latest)](https://hub.docker.com/r/3soos3/solve-it-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Production-ready MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base.**
@@ -82,31 +82,31 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and security policy.
 
 ### Choose Your Registry
 
-**Docker Hub** (docker.io) - For general use:
-```bash
-docker pull 3soos3/solve-it-mcp:latest
-```
-
-**GitHub Container Registry** (ghcr.io) - For forensic verification:
+**GitHub Container Registry** (ghcr.io) - Recommended:
 ```bash
 docker pull ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
+**Docker Hub** (docker.io) - Alternative:
+```bash
+docker pull 3soos3/solve-it-mcp:latest
+```
+
 **Which to use?**
-- **Docker Hub**: Clean tags, best for production use
-- **GHCR**: Includes cryptographic signatures and SBOM attachments for forensic verification
+- **GHCR**: Recommended for all users - no rate limits, includes cryptographic signatures and SBOM
+- **Docker Hub**: Alternative registry, maintains backward compatibility
 
 ### Pull and Run
 
 ```bash
 # Pull the latest stable image (SOLVE-IT 0.2025-10)
-docker pull 3soos3/solve-it-mcp:latest
+docker pull ghcr.io/3soos3/solve-it-mcp:latest
 
 # Run in HTTP mode (for web/API access)
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
   -e HTTP_PORT=8000 \
-  3soos3/solve-it-mcp:latest
+  ghcr.io/3soos3/solve-it-mcp:latest
 
 # Test health endpoint
 curl http://localhost:8000/healthz
@@ -149,7 +149,7 @@ For detailed Docker documentation, see [docs/DOCKER.md](docs/DOCKER.md).
 version: '3.8'
 services:
   solve-it-mcp:
-    image: 3soos3/solve-it-mcp:latest
+    image: ghcr.io/3soos3/solve-it-mcp:latest
     ports:
       - "8000:8000"
     environment:
