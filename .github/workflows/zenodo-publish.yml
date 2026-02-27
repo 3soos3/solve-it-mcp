@@ -66,7 +66,7 @@ jobs:
           GIT_COMMIT=$(git rev-parse --short HEAD)
           BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           SOLVEIT_VERSION="${{ inputs.solveit_version || '0.2025-10' }}"
-          
+
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "git_commit=${GIT_COMMIT}" >> $GITHUB_OUTPUT
@@ -86,15 +86,15 @@ jobs:
           # Get image digests for all architectures
           docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/solve-it-mcp:sha-${{ steps.meta.outputs.git_commit }} \
             --format '{{json .}}' > manifest.json
-          
+
           AMD64_DIGEST=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "amd64") | .digest')
           ARM64_DIGEST=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "arm64") | .digest')
           ARMV7_DIGEST=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "arm" and .platform.variant == "v7") | .digest')
-          
+
           AMD64_SIZE=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "amd64") | .size')
           ARM64_SIZE=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "arm64") | .size')
           ARMV7_SIZE=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "arm" and .platform.variant == "v7") | .size')
-          
+
           echo "amd64_digest=${AMD64_DIGEST}" >> $GITHUB_OUTPUT
           echo "arm64_digest=${ARM64_DIGEST}" >> $GITHUB_OUTPUT
           echo "armv7_digest=${ARMV7_DIGEST}" >> $GITHUB_OUTPUT
@@ -155,7 +155,7 @@ jobs:
 
           ### Software Bill of Materials (SBOM)
           - **Format**: SPDX 2.3, CycloneDX 1.4, Syft native
-          - **Attached Files**: 
+          - **Attached Files**:
             - `sbom-spdx.json` (SPDX format)
             - `sbom-cyclonedx.json` (CycloneDX format)
             - `sbom-syft.json` (Syft native format)
@@ -261,7 +261,7 @@ jobs:
           echo "Zenodo monitors GitHub releases and creates deposits automatically"
           echo "This usually takes 5-15 minutes after release creation"
           echo "::endgroup::"
-          
+
           # Wait 5 minutes for Zenodo webhook to process
           echo "Waiting 5 minutes for Zenodo webhook..."
           sleep 300
@@ -272,7 +272,7 @@ jobs:
           ZENODO_URL="${{ steps.zenodo_env.outputs.zenodo_url }}"
           TOKEN="${{ steps.zenodo_env.outputs.zenodo_token }}"
           TAG="${{ inputs.tag || github.ref_name }}"
-          
+
           if [ -z "$TOKEN" ]; then
             echo "::warning::Zenodo token not configured for ${{ steps.zenodo_env.outputs.environment }}"
             echo "::warning::Skipping DOI retrieval"
@@ -281,18 +281,18 @@ jobs:
             echo "zenodo_url=PENDING" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
+
           echo "::group::Searching for Zenodo deposit"
-          
+
           # Query Zenodo API for deposits matching this repo
           RESPONSE=$(curl -s "${ZENODO_URL}/api/deposit/depositions?q=github:${{ github.repository }}" \
             -H "Authorization: Bearer ${TOKEN}")
-          
+
           # Find deposit for this specific tag
           DOI=$(echo "$RESPONSE" | jq -r ".[] | select(.metadata.version == \"${TAG#v}\") | .metadata.doi // empty" | head -1)
           CONCEPT_DOI=$(echo "$RESPONSE" | jq -r ".[] | select(.metadata.version == \"${TAG#v}\") | .conceptdoi // empty" | head -1)
           ZENODO_RECORD_URL=$(echo "$RESPONSE" | jq -r ".[] | select(.metadata.version == \"${TAG#v}\") | .links.record_html // empty" | head -1)
-          
+
           if [ -n "$DOI" ]; then
             echo "::notice::✅ DOI found: ${DOI}"
             echo "::notice::✅ Concept DOI: ${CONCEPT_DOI}"
@@ -307,7 +307,7 @@ jobs:
             echo "concept_doi=PENDING" >> $GITHUB_OUTPUT
             echo "zenodo_url=PENDING" >> $GITHUB_OUTPUT
           fi
-          
+
           echo "::endgroup::"
 
   update-citations:
@@ -331,7 +331,7 @@ jobs:
           TAG="${{ inputs.tag || github.ref_name }}"
           VERSION="${TAG#v}"
           BUILD_DATE=$(date -u +"%Y-%m-%d")
-          
+
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
 
@@ -340,13 +340,13 @@ jobs:
           DOI="${{ needs.wait-for-zenodo.outputs.doi }}"
           VERSION="${{ steps.meta.outputs.version }}"
           DATE="${{ steps.meta.outputs.build_date }}"
-          
+
           # Update version
           sed -i "s/^version: .*/version: \"${VERSION}\"/" CITATION.cff
-          
+
           # Update date
           sed -i "s/^date-released: .*/date-released: \"${DATE}\"/" CITATION.cff
-          
+
           # Add or update DOI
           if grep -q "^doi:" CITATION.cff; then
             sed -i "s|^doi: .*|doi: ${DOI}|" CITATION.cff
@@ -354,13 +354,13 @@ jobs:
             # Remove comment and add DOI
             sed -i "s|^# doi: .*|doi: ${DOI}|" CITATION.cff
           fi
-          
+
           echo "::notice::Updated CITATION.cff with version ${VERSION} and DOI ${DOI}"
 
       - name: Update README.md
         run: |
           CONCEPT_DOI="${{ needs.wait-for-zenodo.outputs.concept_doi }}"
-          
+
           # Update or add DOI badge in README
           if grep -q "zenodo.org/badge/DOI" README.md; then
             # Update existing badge
@@ -370,21 +370,21 @@ jobs:
             # Add badge after Docker Pulls badge
             sed -i "/Docker Pulls/a [![DOI](https://zenodo.org/badge/DOI/${CONCEPT_DOI}.svg)](https://doi.org/${CONCEPT_DOI})" README.md
           fi
-          
+
           # Update citation section DOI if it exists
           if grep -q "@software{solve_it_mcp" README.md; then
             sed -i "s|doi = {.*}|doi = {${CONCEPT_DOI}}|" README.md
           fi
-          
+
           echo "::notice::Updated README.md with Concept DOI ${CONCEPT_DOI}"
 
       - name: Commit and push changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
+
           git add CITATION.cff README.md
-          
+
           if git diff --staged --quiet; then
             echo "::notice::No changes to commit"
           else
@@ -395,7 +395,7 @@ jobs:
               -m "- Updated CITATION.cff with version ${{ steps.meta.outputs.version }}" \
               -m "- Added DOI: ${{ needs.wait-for-zenodo.outputs.doi }}" \
               -m "- Updated README.md with Concept DOI: ${{ needs.wait-for-zenodo.outputs.concept_doi }}"
-            
+
             git push origin main
             echo "::notice::✅ Pushed citation updates to main branch"
           fi
