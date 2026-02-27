@@ -21,15 +21,15 @@ This guide covers running the SOLVE-IT MCP Server using Docker and Docker Compos
 
 ```bash
 # Pull the latest image
-docker pull 3soos3/solve-it-mcp:latest
+docker pull ghcr.io/3soos3/solve-it-mcp:latest
 
 # Run in HTTP mode (for Kubernetes/web clients)
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
-  3soos3/solve-it-mcp:latest
+  ghcr.io/3soos3/solve-it-mcp:latest
 
 # Test the server (Kubernetes standard endpoint)
-curl http://localhost:8000/healthzz
+curl http://localhost:8000/healthz
 ```
 
 ### Run with Docker Compose
@@ -50,23 +50,26 @@ docker-compose -f docker-compose.dev.yml up
 
 Images are published to **two registries** with different purposes:
 
-#### 🐳 **Docker Hub** (Recommended for General Use)
+#### 📦 **GitHub Container Registry** (Recommended)
+- **Registry**: `ghcr.io/3soos3/solve-it-mcp`
+- **Purpose**: Primary production deployment, forensic verification
+- **Tags**: Full tag list + Cosign artifacts
+- **Artifacts**: Cryptographic signatures (.sig) and SBOM (.sbom)
+- **Pull**: `docker pull ghcr.io/3soos3/solve-it-mcp:latest`
+- **Speed**: Fast (GitHub CDN), no rate limits for public packages
+- **Benefits**: Best performance, includes security artifacts by default
+
+#### 🐳 **Docker Hub** (Alternative)
 - **Registry**: `docker.io/3soos3/solve-it-mcp`
-- **Purpose**: Production deployment, general use
+- **Purpose**: Alternative registry, backward compatibility
 - **Tags**: Clean list (latest, sha-xxx, version tags only)
 - **Artifacts**: NO Cosign signatures/SBOM (keeps UI clean)
 - **Pull**: `docker pull 3soos3/solve-it-mcp:latest`
-
-#### 📦 **GitHub Container Registry** (Recommended for Forensic Verification)
-- **Registry**: `ghcr.io/3soos3/solve-it-mcp`
-- **Purpose**: Forensic verification, chain-of-custody
-- **Tags**: Same as Docker Hub + Cosign artifacts
-- **Artifacts**: Cryptographic signatures (.sig) and SBOM (.sbom)
-- **Pull**: `docker pull ghcr.io/3soos3/solve-it-mcp:latest`
+- **Note**: Rate limits apply (100 pulls/6h for anonymous users)
 
 **Which registry should I use?**
-- **Docker Hub**: 99% of users - fast pulls, clean UI
-- **GHCR**: Forensic teams needing cryptographic verification
+- **GHCR**: Recommended for all users - no rate limits, includes security artifacts
+- **Docker Hub**: Legacy deployments, automated scripts expecting docker.io
 
 ### Image Tags
 
@@ -113,7 +116,7 @@ Recommended for:
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
   -e HTTP_PORT=8000 \
-  3soos3/solve-it-mcp:latest
+  ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 **Health Endpoints:**
@@ -133,7 +136,7 @@ Recommended for:
 ```bash
 docker run -i \
   -e MCP_TRANSPORT=stdio \
-  3soos3/solve-it-mcp:latest
+  ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 **Note**: STDIO mode requires `-i` (interactive) flag and doesn't expose HTTP endpoints.
@@ -193,7 +196,7 @@ docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
   -e LOG_LEVEL=INFO \
   -e OTEL_ENABLED=false \
-  3soos3/solve-it-mcp:latest
+  ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 #### Full Observability
@@ -205,7 +208,7 @@ docker run -p 8000:8000 \
   -e OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 \
   -e ENVIRONMENT=production \
   -e LOG_FORMAT=json \
-  3soos3/solve-it-mcp:latest
+  ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 #### Development (STDIO)
@@ -216,7 +219,7 @@ docker run -i \
   -e LOG_LEVEL=DEBUG \
   -e LOG_FORMAT=text \
   -e OTEL_ENABLED=false \
-  3soos3/solve-it-mcp:latest
+  ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 ---
@@ -342,7 +345,7 @@ docker buildx create --name mcp-builder --use
 # Build for all platforms
 docker buildx build \
   --platform linux/amd64,linux/arm64,linux/arm/v7 \
-  --tag 3soos3/solve-it-mcp:latest \
+  --tag ghcr.io/3soos3/solve-it-mcp:latest \
   --push \
   .
 ```
@@ -442,7 +445,7 @@ docker run -v $(pwd)/solve-it-main:/app/solve-it-main:ro ...
 docker run --privileged --rm tonistiigi/binfmt --install all
 
 # Use buildkit cache
-docker buildx build --cache-from type=registry,ref=3soos3/solve-it-mcp:buildcache ...
+docker buildx build --cache-from type=registry,ref=ghcr.io/3soos3/solve-it-mcp:buildcache ...
 ```
 
 For local testing, build only your platform:
@@ -465,17 +468,17 @@ docker run -e LOG_LEVEL=DEBUG -e LOG_FORMAT=text ...
 docker exec -it <container-id> /bin/bash
 
 # New container
-docker run -it --entrypoint /bin/bash 3soos3/solve-it-mcp:latest
+docker run -it --entrypoint /bin/bash ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 #### Inspect Image Layers
 
 ```bash
 # View image history
-docker history 3soos3/solve-it-mcp:latest
+docker history ghcr.io/3soos3/solve-it-mcp:latest
 
 # Inspect image metadata
-docker inspect 3soos3/solve-it-mcp:latest
+docker inspect ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 ---
@@ -501,10 +504,10 @@ brew install aquasecurity/trivy/trivy  # macOS
 # or: apt-get install trivy             # Debian/Ubuntu
 
 # Scan image
-trivy image 3soos3/solve-it-mcp:latest
+trivy image ghcr.io/3soos3/solve-it-mcp:latest
 
 # Scan for CRITICAL/HIGH only
-trivy image --severity CRITICAL,HIGH 3soos3/solve-it-mcp:latest
+trivy image --severity CRITICAL,HIGH ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 ### Runtime Security
@@ -517,7 +520,7 @@ docker run \
   --read-only \
   --tmpfs /tmp \
   -u 1000:1000 \
-  3soos3/solve-it-mcp:latest
+  ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 **Docker Compose Security:**
