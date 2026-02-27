@@ -7,8 +7,8 @@
 [![OpenSSF Scorecard](https://github.com/3soos3/solve-it-mcp/workflows/OpenSSF%20Scorecard/badge.svg)](https://github.com/3soos3/solve-it-mcp/security/code-scanning)
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/3soos3/solve-it-mcp/graphs/commit-activity)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org)
-[![GHCR Package](https://img.shields.io/badge/ghcr.io-solve--it--mcp-blue)](https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp)
 [![Docker Pulls](https://img.shields.io/docker/pulls/3soos3/solve-it-mcp)](https://hub.docker.com/r/3soos3/solve-it-mcp)
+[![Docker Image Size](https://img.shields.io/docker/image-size/3soos3/solve-it-mcp/latest)](https://hub.docker.com/r/3soos3/solve-it-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Production-ready MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base.**
@@ -48,9 +48,9 @@ This project includes automated security scanning and best practices for forensi
 - ✅ **License Compliance**: Automated dependency license checking
 - ✅ **OpenSSF Scorecard**: Public security rating
 
-### Forensic Verification (GHCR Images)
+### Forensic Verification (Advanced - GHCR Images Only)
 
-For maximum integrity and chain-of-custody, use GHCR images with Cosign:
+For organizations requiring cryptographic verification and chain-of-custody, use GHCR images with Cosign:
 
 ```bash
 # Verify image signature (proves authenticity)
@@ -65,7 +65,7 @@ cosign download sbom ghcr.io/3soos3/solve-it-mcp:latest | jq
 cosign download attestation ghcr.io/3soos3/solve-it-mcp:latest | jq
 ```
 
-**Note**: Docker Hub images do NOT include Cosign signatures/SBOM to keep the tag list clean.
+**Note**: Docker Hub images do NOT include Cosign signatures/SBOM to keep the tag list clean for general users. Use GHCR if you need cryptographic verification.
 
 ### For Production Use
 **Important**: This is a best-effort maintained project. For critical forensic use:
@@ -82,31 +82,31 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and security policy.
 
 ### Choose Your Registry
 
-**GitHub Container Registry** (ghcr.io) - Recommended:
-```bash
-docker pull ghcr.io/3soos3/solve-it-mcp:latest
-```
-
-**Docker Hub** (docker.io) - Alternative:
+**Docker Hub** (docker.io) - For General Users:
 ```bash
 docker pull 3soos3/solve-it-mcp:latest
 ```
 
+**GitHub Container Registry** (ghcr.io) - For CI/CD & Forensic Compliance:
+```bash
+docker pull ghcr.io/3soos3/solve-it-mcp:latest
+```
+
 **Which to use?**
-- **GHCR**: Recommended for all users - no rate limits, includes cryptographic signatures and SBOM
-- **Docker Hub**: Alternative registry, maintains backward compatibility
+- **Docker Hub**: Easy to use, no GitHub account required, familiar to most developers
+- **GHCR**: For CI/CD pipelines and organizations requiring forensic compliance (cryptographic signatures, SBOM verification)
 
 ### Pull and Run
 
 ```bash
 # Pull the latest stable image (SOLVE-IT 0.2025-10)
-docker pull ghcr.io/3soos3/solve-it-mcp:latest
+docker pull 3soos3/solve-it-mcp:latest
 
 # Run in HTTP mode (for web/API access)
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
   -e HTTP_PORT=8000 \
-  ghcr.io/3soos3/solve-it-mcp:latest
+  3soos3/solve-it-mcp:latest
 
 # Test health endpoint
 curl http://localhost:8000/healthz
@@ -149,7 +149,7 @@ For detailed Docker documentation, see [docs/DOCKER.md](docs/DOCKER.md).
 version: '3.8'
 services:
   solve-it-mcp:
-    image: ghcr.io/3soos3/solve-it-mcp:latest
+    image: 3soos3/solve-it-mcp:latest
     ports:
       - "8000:8000"
     environment:
