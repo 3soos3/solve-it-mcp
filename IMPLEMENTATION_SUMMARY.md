@@ -103,10 +103,11 @@ v0.2025-11-1.0.0        # Major version
 v0.2025-10-0.1.0-rc.1   # Release candidate
 ```
 
-**Docker Tags** (full version only):
-- `3soos3/solve-it-mcp:v0.2025-10-0.1.0`
-- `3soos3/solve-it-mcp:latest`
-- `3soos3/solve-it-mcp:stable` (manual only)
+**Docker Tags** (available on both GHCR and Docker Hub):
+- `ghcr.io/3soos3/solve-it-mcp:v0.2025-10-0.1.0` (GHCR - Recommended)
+- `ghcr.io/3soos3/solve-it-mcp:latest` (GHCR - Recommended)
+- `ghcr.io/3soos3/solve-it-mcp:stable` (manual only)
+- `3soos3/solve-it-mcp:latest` (Docker Hub - Alternative)
 
 ---
 
@@ -265,6 +266,7 @@ git push origin v2025.10-0.1.0
 # 5. Monitor at: https://github.com/3soos3/solve_it_mcp/actions
 
 # 6. Verify:
+# - GHCR: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
 # - Docker Hub: https://hub.docker.com/r/3soos3/solve-it-mcp/tags
 # - GitHub Release: https://github.com/3soos3/solve_it_mcp/releases
 # - Security tab: https://github.com/3soos3/solve_it_mcp/security
@@ -337,6 +339,7 @@ git push origin v2025.10-0.1.0
 
 - **GitHub Actions**: https://github.com/3soos3/solve_it_mcp/actions
 - **Security Tab**: https://github.com/3soos3/solve_it_mcp/security
+- **GHCR Packages**: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
 - **Docker Hub**: https://hub.docker.com/r/3soos3/solve-it-mcp
 - **Release Page**: https://github.com/3soos3/solve_it_mcp/releases
 
