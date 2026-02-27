@@ -57,7 +57,7 @@ echo ""
 
 # 5. Unit Tests
 echo "=== Unit Tests ==="
-if PYTHONPATH=src pytest tests/ -q --tb=short; then
+if pytest tests/ -q --tb=short; then
     echo -e "${GREEN}✅ Unit Tests PASSED${NC}"
 else
     echo -e "${RED}❌ Unit Tests FAILED${NC}"

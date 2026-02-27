@@ -99,12 +99,12 @@ mypy src/
 Run tests locally with coverage:
 
 ```bash
-PYTHONPATH=src pytest tests/ -v --cov=src --cov-report=term-missing
+pytest tests/ -v --cov=src --cov-report=term-missing
 ```
 
 **Quick test run (no coverage):**
 ```bash
-PYTHONPATH=src pytest tests/ -q
+pytest tests/ -q
 ```
 
 **Expected output:**
@@ -155,7 +155,7 @@ echo "=== 4. Type Checking (non-blocking) ==="
 mypy src/ || echo "⚠️  Type checking had errors (non-blocking)"
 
 echo "=== 5. Unit Tests ==="
-PYTHONPATH=src pytest tests/ -q
+pytest tests/ -q
 
 echo ""
 echo "✅ All checks passed! Safe to push."
@@ -202,8 +202,8 @@ echo "✅ Ready to commit and push"
 | YAML Linting | `yamllint .github/workflows/` | Remove trailing spaces, fix syntax |
 | Ruff errors | `ruff check src/ tests/` | Run `ruff check --fix` |
 | Black formatting | `black --check src/ tests/` | Run `black src/ tests/` |
-| Import errors | `PYTHONPATH=src pytest tests/` | Fix import paths |
-| Test failures | `PYTHONPATH=src pytest tests/ -v` | Debug failing tests |
+| Import errors | `pytest tests/` | Fix import paths |
+| Test failures | `pytest tests/ -v` | Debug failing tests |
 | Docker build | `docker build -t test .` | Fix Dockerfile or dependencies |
 
 ---
@@ -225,19 +225,19 @@ echo "✅ Ready to commit and push"
 2. **Fix issues locally rather than in CI**
 3. **Use `--fix` flags to auto-correct linting issues**
 4. **Commit formatting fixes separately** from functional changes
-5. **Test imports with `PYTHONPATH=src`** to match CI environment
-6. **Use the pre-push check script** for consistency
+5. **Use the pre-push check script** for consistency
 
 ---
 
 ## Troubleshooting
 
-### "ModuleNotFoundError: No module named 'solveit_mcp_server'"
+### "ModuleNotFoundError: No module named 'config/tools/utils'"
 
-**Solution:** Use `PYTHONPATH=src` when running tests:
-```bash
-PYTHONPATH=src pytest tests/
-```
+**Solution:** Pytest is configured to automatically add `src/` to the Python path via `pyproject.toml`. If you still get import errors:
+
+1. Ensure you're in the project root directory
+2. Check that `pyproject.toml` contains `pythonpath = ["src"]` under `[tool.pytest.ini_options]`
+3. Try running: `pytest tests/ --collect-only` to see if tests are discovered
 
 ### "yamllint: command not found"
 
@@ -257,9 +257,9 @@ ruff check --fix --unsafe-fixes src/ tests/
 
 **Possible causes:**
 1. Different Python version (CI uses 3.11 and 3.12)
-2. Missing `PYTHONPATH=src` locally
-3. Uncommitted changes
-4. Package installation differences
+2. Uncommitted changes
+3. Package installation differences
+4. Missing dependencies
 
 **Debug:**
 ```bash
@@ -267,7 +267,10 @@ ruff check --fix --unsafe-fixes src/ tests/
 python --version
 
 # Run tests exactly like CI
-PYTHONPATH=src pytest tests/ -v --cov=src
+pytest tests/ -v --cov=src
+
+# Check for uncommitted changes
+git status
 ```
 
 ---
@@ -279,7 +282,7 @@ PYTHONPATH=src pytest tests/ -v --cov=src
 ```bash
 ruff check --fix src/ tests/
 black src/ tests/
-PYTHONPATH=src pytest tests/ -q
+pytest tests/ -q
 ```
 
 If all pass: **✅ Safe to push!**

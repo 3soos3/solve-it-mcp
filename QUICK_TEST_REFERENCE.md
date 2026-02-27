@@ -16,7 +16,7 @@ ruff check --fix src/ tests/
 black src/ tests/
 
 # 2. Run tests
-PYTHONPATH=src pytest tests/ -q
+pytest tests/ -q
 
 # 3. Check YAML (if you modified workflows)
 yamllint .github/workflows/
