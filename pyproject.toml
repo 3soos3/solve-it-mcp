@@ -1,14 +1,43 @@
 [project]
 name = "solveit-mcp-server"
-version = "0.1.0"
-description = "MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base"
-requires-python = ">=3.7"
+version = "0.2025.10.0.1.0"
+description = "Production-ready MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "3soos3"}]
+keywords = ["digital-forensics", "mcp-server", "model-context-protocol", "solve-it", "llm", "forensic-investigation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+]
 dependencies = [
+    # Core MCP dependencies
     "mcp>=1.0.0",
     "pydantic>=2.0,<3.0",
+    "anyio>=4.0,<5.0",
     "aiofiles>=23.0",
     "httpx>=0.25,<1.0",
-    "anyio>=4.0,<5.0",
+    # HTTP/ASGI server
+    "starlette>=0.37.0",
+    "uvicorn[standard]>=0.27.0",
+    # OpenTelemetry
+    "opentelemetry-api>=1.21.0",
+    "opentelemetry-sdk>=1.21.0",
+    "opentelemetry-instrumentation>=0.42b0",
+    "opentelemetry-exporter-otlp>=1.21.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.21.0",
+    "opentelemetry-instrumentation-asyncio>=0.42b0",
+    "opentelemetry-instrumentation-httpx>=0.42b0",
+    "opentelemetry-instrumentation-logging>=0.42b0",
+    "opentelemetry-instrumentation-starlette>=0.42b0",
+    # Resource monitoring
+    "psutil>=5.9.0",
 ]
 
 [project.optional-dependencies]
@@ -21,9 +50,19 @@ dev = [
     "black>=23.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/3soos3/solve-it-mcp"
+Documentation = "https://github.com/3soos3/solve-it-mcp/blob/main/README.md"
+Repository = "https://github.com/3soos3/solve-it-mcp"
+"Bug Tracker" = "https://github.com/3soos3/solve-it-mcp/issues"
+"Security" = "https://github.com/3soos3/solve-it-mcp/security"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
 
 [project.scripts]
 solveit-mcp-server = "server:main"
@@ -78,10 +117,26 @@ select = [
     "C4",   # flake8-comprehensions
     "SIM",  # flake8-simplify
     "RUF",  # Ruff-specific rules
+    "S",    # flake8-bandit (security)
+    "A",    # flake8-builtins
+    "DTZ",  # flake8-datetimez
 ]
 ignore = [
     "E501",  # line too long (handled by formatter)
+    "S101",  # use of assert (common in tests)
+    "S104",  # binding to all interfaces (intentional for servers)
+    "B904",  # exception chaining with 'from' (good practice but not critical)
+    "RUF002",  # ambiguous × character in docstrings
+    "RUF012",  # mutable class attributes (needs refactoring)
+    "SIM102",  # nested if statements (readability preference)
+    "SIM105",  # use contextlib.suppress (style preference)
+    "SIM117",  # nested with statements (readability preference)
+    "UP046",  # generic type parameters (Python 3.12+ feature)
+    "DTZ006",  # datetime without timezone (good practice but not critical)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106", "S110", "N818", "RUF043"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]
@@ -89,6 +144,7 @@ force-sort-within-sections = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]  # Add src to Python path for imports
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

@@ -1,4 +1,4 @@
-name: License Compliance
+name: License Compliance Check
 
 on:
   pull_request:
@@ -20,12 +20,14 @@ jobs:
   check-licenses:
     name: Check Dependency Licenses
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -63,7 +65,7 @@ jobs:
 
       - name: Upload license report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.3.1
         with:
           name: license-report
           path: |
@@ -80,10 +82,10 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -124,7 +126,7 @@ jobs:
 
       - name: Create Pull Request for NOTICE update
         if: steps.notice-changed.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@c7dacb4a1f1d6c7f8b0d1e93b3e6d8a9c3f5e2d1 # v6.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: Update NOTICE file with dependency licenses"
@@ -154,6 +156,8 @@ jobs:
   license-summary:
     name: License Summary
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [check-licenses, generate-notice]
     if: always()
     steps:

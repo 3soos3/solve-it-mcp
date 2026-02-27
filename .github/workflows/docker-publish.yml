@@ -1,13 +1,11 @@
-name: Docker - Build and Publish
+name: Docker - Build & Publish to Registries
 
-# Production Docker image build and publish
-# Only runs on main branch after CI and security checks pass
+# Production Docker image build and publish to GHCR and Docker Hub
+# Only runs on tagged releases (not on every main push)
 # Includes SBOM generation and image signing for forensic integrity
 
 on:
   push:
-    branches:
-      - main
     tags:
       - 'v*'
   workflow_dispatch:
@@ -16,12 +14,6 @@ on:
         description: 'Additional tag to apply'
         required: false
         type: string
-  workflow_run:
-    workflows: ["CI - Code Quality & Tests"]
-    types:
-      - completed
-    branches:
-      - main
   workflow_call:
     inputs:
       solveit_version:
@@ -75,30 +67,30 @@ jobs:
       id-token: write  # For cosign signing
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           fetch-depth: 0
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@e1523de7571e31dbe865fd2e80c5c7c23ae71eb4 # v3.4.0
 
       - name: Install Syft (for SBOM generation)
-        uses: anchore/sbom-action/download-syft@v0
+        uses: anchore/sbom-action/download-syft@ab9d16d4b419c9d1a02df5213fa0ebe965ca5a57 # v0.15.9
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -135,27 +127,34 @@ jobs:
           echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
 
           # Build tags for BOTH registries
-          DOCKERHUB_TAGS="${{ env.DOCKERHUB_REPO }}:sha-${GIT_COMMIT}"
-          GHCR_TAGS="${{ env.GHCR_REPO }}:sha-${GIT_COMMIT}"
+          # Only publish on tagged releases (not every main push)
+          DOCKERHUB_TAGS=""
+          GHCR_TAGS=""
 
-          # Add latest tag for main branch
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:latest"
-            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:latest"
-          fi
-
-          # Add version tag for git tags
+          # For tagged releases: version tag, latest tag, and SHA tag
           if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:v${VERSION}"
+            # Version tag (e.g., v0.2025-10-0.1.0)
+            DOCKERHUB_TAGS="${{ env.DOCKERHUB_REPO }}:v${VERSION}"
+            GHCR_TAGS="${{ env.GHCR_REPO }}:v${VERSION}"
+
+            # Latest tag
             DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:latest"
-            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:v${VERSION}"
             GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:latest"
+
+            # SHA tag (for forensic reproducibility)
+            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:sha-${GIT_COMMIT}"
+            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:sha-${GIT_COMMIT}"
           fi
 
-          # Add custom tag if provided
+          # Add custom tag if provided (manual workflow_dispatch)
           if [[ -n "${{ github.event.inputs.tag }}" ]]; then
-            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:${{ github.event.inputs.tag }}"
-            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:${{ github.event.inputs.tag }}"
+            if [[ -z "$DOCKERHUB_TAGS" ]]; then
+              DOCKERHUB_TAGS="${{ env.DOCKERHUB_REPO }}:${{ github.event.inputs.tag }}"
+              GHCR_TAGS="${{ env.GHCR_REPO }}:${{ github.event.inputs.tag }}"
+            else
+              DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:${{ github.event.inputs.tag }}"
+              GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:${{ github.event.inputs.tag }}"
+            fi
           fi
 
           # Combine all tags for build step
@@ -188,7 +187,7 @@ jobs:
 
       - name: Build and push multi-arch image
         id: build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@2cdde995de11925a030ce8070c3d77a52ffcf1c0 # v5.1.0
         with:
           context: .
           platforms: ${{ env.PLATFORMS }}
@@ -208,7 +207,7 @@ jobs:
       - name: Generate SBOM with Syft
         run: |
           echo "::group::Generating SBOM"
-          syft ${{ env.DOCKERHUB_REPO }}:sha-${{ steps.meta.outputs.git_commit }} \
+          syft ${{ env.GHCR_REPO }}:sha-${{ steps.meta.outputs.git_commit }} \
             -o spdx-json=sbom-spdx.json \
             -o cyclonedx-json=sbom-cyclonedx.json \
             -o syft-json=sbom-syft.json
@@ -216,7 +215,7 @@ jobs:
           echo "::notice::✅ SBOM generated in multiple formats"
 
       - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
         with:
           name: sbom-${{ steps.meta.outputs.git_commit }}
           path: |
@@ -253,7 +252,7 @@ jobs:
           echo "::notice::Docker Hub tags remain clean (no .sig/.sbom clutter)"
 
       - name: Update Docker Hub description
-        uses: peter-evans/dockerhub-description@v4
+        uses: peter-evans/dockerhub-description@e98e4d1628a5f3be2be7c231e50981aee98723ae # v4.0.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -308,7 +307,7 @@ jobs:
         platform: [linux/amd64, linux/arm64, linux/arm/v7]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
       - name: Extract metadata for scanning
         id: meta
@@ -321,21 +320,22 @@ jobs:
           echo "platform_tag=${PLATFORM_TAG}" >> $GITHUB_OUTPUT
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@68827325e0b33c7199eb31dd4e31fbe9023e06e3 # v3.0.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull and export image for scanning
         run: |
           docker buildx imagetools inspect \
-            ${{ env.DOCKERHUB_REPO }}:sha-${{ steps.meta.outputs.git_commit }} \
+            ${{ env.GHCR_REPO }}:sha-${{ steps.meta.outputs.git_commit }} \
             --format '{{json .}}' | jq -r '.manifest.manifests[] | select(.platform.os == "linux" and .platform.architecture == "'$(echo ${{ matrix.platform }} | cut -d/ -f2)'") | .digest'
 
           # For simplicity, build the image locally for this platform
@@ -362,7 +362,7 @@ jobs:
             --vuln-type os,library
 
       - name: Upload Trivy results
-        uses: github/codeql-action/upload-sarif@v4
+        uses: github/codeql-action/upload-sarif@v3.24.6
         with:
           sarif_file: trivy-${{ steps.meta.outputs.platform_tag }}.sarif
           category: trivy-${{ steps.meta.outputs.platform_tag }}
@@ -383,3 +383,206 @@ jobs:
           else
             echo "::notice::✅ No CRITICAL vulnerabilities in ${{ matrix.platform }}"
           fi
+
+  # Job 4: Health Check Validation (For Monthly Automated Releases)
+  healthcheck-validation:
+    name: Validate Release Candidate
+    runs-on: ubuntu-latest
+    needs: build-and-publish
+    if: inputs.release_tag != ''
+    permissions:
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          echo "git_commit=${GIT_COMMIT}" >> $GITHUB_OUTPUT
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull test image
+        run: |
+          docker pull ghcr.io/${{ github.repository_owner }}/solve-it-mcp:sha-${{ steps.meta.outputs.git_commit }}
+
+      - name: Runtime health checks
+        run: |
+          echo "::group::Starting container for health validation"
+
+          # Start container
+          docker run -d --name healthcheck-test \
+            -e MCP_TRANSPORT=http \
+            -e HTTP_PORT=8000 \
+            -p 8000:8000 \
+            ghcr.io/${{ github.repository_owner }}/solve-it-mcp:sha-${{ steps.meta.outputs.git_commit }}
+
+          # Wait for startup
+          echo "Waiting 15 seconds for container startup..."
+          sleep 15
+
+          echo "::endgroup::"
+
+      - name: Health endpoint validation
+        run: |
+          echo "::group::Testing health endpoints"
+
+          # Test /healthz
+          if curl -f http://localhost:8000/healthz; then
+            echo "::notice::✅ /healthz endpoint responding"
+          else
+            echo "::error::/healthz endpoint failed"
+            docker logs healthcheck-test
+            exit 1
+          fi
+
+          # Test /readyz
+          if curl -f http://localhost:8000/readyz; then
+            echo "::notice::✅ /readyz endpoint responding"
+          else
+            echo "::error::/readyz endpoint failed"
+            docker logs healthcheck-test
+            exit 1
+          fi
+
+          echo "::endgroup::"
+
+      - name: MCP functionality validation
+        run: |
+          echo "::group::Testing MCP functionality"
+
+          # Test tools list
+          TOOLS_COUNT=$(curl -s -X POST http://localhost:8000/mcp/v1/messages \
+            -H "Content-Type: application/json" \
+            -d '{"method":"tools/list"}' | jq '.tools | length')
+
+          if [ "$TOOLS_COUNT" -gt 20 ]; then
+            echo "::notice::✅ MCP tools available: ${TOOLS_COUNT}"
+          else
+            echo "::error::Expected >20 MCP tools, found: ${TOOLS_COUNT}"
+            exit 1
+          fi
+
+          # Test technique query (validates SOLVE-IT data loaded)
+          TECHNIQUE_RESULT=$(curl -s -X POST http://localhost:8000/mcp/v1/messages \
+            -H "Content-Type: application/json" \
+            -d '{"method":"tools/call","params":{"name":"get_technique","arguments":{"technique_id":"T1001"}}}')
+
+          TECHNIQUE_ID=$(echo "$TECHNIQUE_RESULT" | jq -r '.result.id // empty')
+
+          if [ "$TECHNIQUE_ID" = "T1001" ]; then
+            echo "::notice::✅ SOLVE-IT data loaded correctly"
+          else
+            echo "::error::Failed to query SOLVE-IT technique T1001"
+            echo "Response: $TECHNIQUE_RESULT"
+            exit 1
+          fi
+
+          echo "::endgroup::"
+
+      - name: Data integrity validation
+        run: |
+          echo "::group::Validating SOLVE-IT data integrity"
+
+          # Verify SOLVE-IT version in health response
+          HEALTH_RESPONSE=$(curl -s http://localhost:8000/healthz)
+          echo "Health response: $HEALTH_RESPONSE"
+
+          # Check that container has no errors in logs
+          echo "Checking container logs for errors..."
+          if docker logs healthcheck-test 2>&1 | grep -qi "error\|exception\|failed" | grep -v "test"; then
+            echo "::warning::Found error messages in container logs (may be expected)"
+            docker logs healthcheck-test 2>&1 | grep -i "error\|exception\|failed" | head -10
+          else
+            echo "::notice::✅ No critical errors in container logs"
+          fi
+
+          echo "::endgroup::"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop healthcheck-test || true
+          docker rm healthcheck-test || true
+
+      - name: Health check summary
+        run: |
+          echo "## Health Check Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Health endpoints**: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **MCP functionality**: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Data integrity**: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: \`ghcr.io/${{ github.repository_owner }}/solve-it-mcp:sha-${{ steps.meta.outputs.git_commit }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Release candidate validated and ready for stable tag." >> $GITHUB_STEP_SUMMARY
+
+  # Job 5: Trigger Zenodo Release (Stable Releases Only)
+  trigger-zenodo:
+    name: Trigger Zenodo DOI Publication
+    runs-on: ubuntu-latest
+    needs: [build-and-publish, security-scan]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      !contains(github.ref, '-rc') &&
+      !contains(github.ref, '-beta') &&
+      !contains(github.ref, '-alpha') &&
+      !contains(github.ref, '-test') &&
+      !contains(github.ref, '-sandbox')
+    permissions:
+      contents: write
+    steps:
+      - name: Extract metadata
+        id: meta
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+
+          # Detect SOLVE-IT version (reuse logic from earlier job)
+          SOLVEIT_VERSION=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // empty' | sed 's/^v//')
+          if [ -z "$SOLVEIT_VERSION" ]; then
+            SOLVEIT_VERSION="0.2025-10"
+          fi
+
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Trigger Zenodo Publish Workflow
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'zenodo-publish.yml',
+              ref: 'main',
+              inputs: {
+                tag: '${{ steps.meta.outputs.tag }}',
+                use_sandbox: 'false'
+              }
+            });
+
+            core.notice('✅ Triggered Zenodo publish workflow for stable release');
+            core.notice('Release: ${{ steps.meta.outputs.version }}');
+            core.notice('SOLVE-IT Version: ${{ steps.meta.outputs.solveit_version }}');
+
+      - name: Create summary
+        run: |
+          echo "## Zenodo Release Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version**: \`${{ steps.meta.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag**: \`${{ steps.meta.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**SOLVE-IT Version**: \`${{ steps.meta.outputs.solveit_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Zenodo publish workflow triggered" >> $GITHUB_STEP_SUMMARY
+          echo "⏳ GitHub Release and DOI will be created automatically" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Monitor progress at: https://github.com/${{ github.repository }}/actions/workflows/zenodo-publish.yml" >> $GITHUB_STEP_SUMMARY

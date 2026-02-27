@@ -11,7 +11,7 @@ server logic, enabling the same server to work over different transports.
 Typical usage:
     >>> from transports import run_stdio_server, HTTPTransportManager
     >>> from config import load_config
-    >>> 
+    >>>
     >>> config = load_config()
     >>> if config.transport == "stdio":
     ...     await run_stdio_server(server)
@@ -25,6 +25,7 @@ from .stdio_transport import run_stdio_server
 # HTTP transport import is conditional to avoid dependency issues
 try:
     from .http_transport import HTTPTransportManager
+
     HTTP_AVAILABLE = True
 except ImportError:
     HTTP_AVAILABLE = False

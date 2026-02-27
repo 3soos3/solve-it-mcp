@@ -29,7 +29,7 @@ docker run -p 8000:8000 \
   3soos3/solve-it-mcp:latest
 
 # Test the server (Kubernetes standard endpoint)
-curl http://localhost:8000/healthzz
+curl http://localhost:8000/healthz
 ```
 
 ### Run with Docker Compose
@@ -50,23 +50,27 @@ docker-compose -f docker-compose.dev.yml up
 
 Images are published to **two registries** with different purposes:
 
-#### 🐳 **Docker Hub** (Recommended for General Use)
+#### 🐳 **Docker Hub** (For General Users)
 - **Registry**: `docker.io/3soos3/solve-it-mcp`
-- **Purpose**: Production deployment, general use
+- **Purpose**: General use, easy deployment
 - **Tags**: Clean list (latest, sha-xxx, version tags only)
 - **Artifacts**: NO Cosign signatures/SBOM (keeps UI clean)
 - **Pull**: `docker pull 3soos3/solve-it-mcp:latest`
+- **Benefits**: No GitHub account needed, familiar to most developers, works everywhere
+- **Note**: Rate limits apply (100 pulls/6h for anonymous users)
 
-#### 📦 **GitHub Container Registry** (Recommended for Forensic Verification)
+#### 📦 **GitHub Container Registry** (For CI/CD & Forensic Compliance)
 - **Registry**: `ghcr.io/3soos3/solve-it-mcp`
-- **Purpose**: Forensic verification, chain-of-custody
-- **Tags**: Same as Docker Hub + Cosign artifacts
-- **Artifacts**: Cryptographic signatures (.sig) and SBOM (.sbom)
+- **Purpose**: CI/CD pipelines, forensic verification, compliance requirements
+- **Tags**: Full tag list + Cosign artifacts (.sig, .sbom, .att)
+- **Artifacts**: Cryptographic signatures and SBOM for verification
 - **Pull**: `docker pull ghcr.io/3soos3/solve-it-mcp:latest`
+- **Speed**: Fast (GitHub CDN), no rate limits for public packages
+- **Benefits**: Chain-of-custody verification, automated CI/CD workflows
 
 **Which registry should I use?**
-- **Docker Hub**: 99% of users - fast pulls, clean UI
-- **GHCR**: Forensic teams needing cryptographic verification
+- **Docker Hub**: General users, production deployments, ease of use
+- **GHCR**: CI/CD pipelines, security teams needing cryptographic verification, compliance audits
 
 ### Image Tags
 
@@ -92,7 +96,7 @@ Docker automatically pulls the correct architecture for your platform.
 
 ### Image Size
 
-- **Production image**: ~200 MB (multi-stage build, optimized)
+- **Production image**: ~60 MB (multi-stage build, Alpine-optimized)
 - **Development image**: ~450 MB (includes dev tools)
 
 ---
@@ -339,9 +343,10 @@ Requires Docker Buildx:
 # Create builder
 docker buildx create --name mcp-builder --use
 
-# Build for all platforms
+# Build for all platforms (example pushes to GHCR for CI/CD)
 docker buildx build \
   --platform linux/amd64,linux/arm64,linux/arm/v7 \
+  --tag ghcr.io/3soos3/solve-it-mcp:latest \
   --tag 3soos3/solve-it-mcp:latest \
   --push \
   .
@@ -442,7 +447,7 @@ docker run -v $(pwd)/solve-it-main:/app/solve-it-main:ro ...
 docker run --privileged --rm tonistiigi/binfmt --install all
 
 # Use buildkit cache
-docker buildx build --cache-from type=registry,ref=3soos3/solve-it-mcp:buildcache ...
+docker buildx build --cache-from type=registry,ref=ghcr.io/3soos3/solve-it-mcp:buildcache ...
 ```
 
 For local testing, build only your platform:

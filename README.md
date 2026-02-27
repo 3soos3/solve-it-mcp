@@ -1,11 +1,15 @@
 # SOLVE-IT MCP Server
 
+[![Release](https://img.shields.io/github/v/release/3soos3/solve-it-mcp?sort=semver)](https://github.com/3soos3/solve-it-mcp/releases/latest)
 [![CI - Code Quality](https://github.com/3soos3/solve-it-mcp/workflows/CI%20-%20Code%20Quality%20%26%20Tests/badge.svg)](https://github.com/3soos3/solve-it-mcp/actions/workflows/ci.yml)
 [![Security Scanning](https://github.com/3soos3/solve-it-mcp/workflows/Security%20-%20Vulnerability%20Scanning/badge.svg)](https://github.com/3soos3/solve-it-mcp/actions/workflows/security.yml)
 [![License Compliance](https://github.com/3soos3/solve-it-mcp/workflows/License%20Compliance/badge.svg)](https://github.com/3soos3/solve-it-mcp/actions/workflows/license-compliance.yml)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/3soos3/solve-it-mcp/badge)](https://securityscorecards.dev/viewer/?uri=github.com/3soos3/solve-it-mcp)
+[![OpenSSF Scorecard](https://github.com/3soos3/solve-it-mcp/workflows/OpenSSF%20Scorecard/badge.svg)](https://github.com/3soos3/solve-it-mcp/security/code-scanning)
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/3soos3/solve-it-mcp/graphs/commit-activity)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org)
 [![Docker Pulls](https://img.shields.io/docker/pulls/3soos3/solve-it-mcp)](https://hub.docker.com/r/3soos3/solve-it-mcp)
 [![Docker Image Size](https://img.shields.io/docker/image-size/3soos3/solve-it-mcp/latest)](https://hub.docker.com/r/3soos3/solve-it-mcp)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Production-ready MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base.**
@@ -19,8 +23,25 @@ SOLVE-IT is a systematic digital forensics knowledge base inspired by MITRE ATT&
 - **📊 OpenTelemetry Observability**: Built-in metrics, tracing, and logging
 - **⚡ High Performance**: Optimized shared knowledge base, sub-second response times
 - **🔄 Dual Transport Modes**: HTTP/SSE for Kubernetes, stdio for desktop clients
-- **📦 Minimal Footprint**: 181MB Alpine-based image (45% smaller than alternatives)
+- **📦 Minimal Footprint**: 60MB Alpine-based image (highly optimized)
 - **☸️ Kubernetes Native**: Production-grade Helm charts with health checks and auto-scaling
+
+## 📖 Citation
+
+If you use this software in forensic investigations or research, please cite it:
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+
+```bibtex
+@software{solve_it_mcp,
+  author = {3soos3},
+  title = {SOLVE-IT MCP Server},
+  doi = {10.5281/zenodo.XXXXXXX},
+  url = {https://github.com/3soos3/solve-it-mcp}
+}
+```
+
+See [CITATION.cff](CITATION.cff) for detailed citation information.
 
 ## What is SOLVE-IT?
 
@@ -45,9 +66,9 @@ This project includes automated security scanning and best practices for forensi
 - ✅ **License Compliance**: Automated dependency license checking
 - ✅ **OpenSSF Scorecard**: Public security rating
 
-### Forensic Verification (GHCR Images)
+### Forensic Verification (Advanced - GHCR Images Only)
 
-For maximum integrity and chain-of-custody, use GHCR images with Cosign:
+For organizations requiring cryptographic verification and chain-of-custody, use GHCR images with Cosign:
 
 ```bash
 # Verify image signature (proves authenticity)
@@ -62,7 +83,7 @@ cosign download sbom ghcr.io/3soos3/solve-it-mcp:latest | jq
 cosign download attestation ghcr.io/3soos3/solve-it-mcp:latest | jq
 ```
 
-**Note**: Docker Hub images do NOT include Cosign signatures/SBOM to keep the tag list clean.
+**Note**: Docker Hub images do NOT include Cosign signatures/SBOM to keep the tag list clean for general users. Use GHCR if you need cryptographic verification.
 
 ### For Production Use
 **Important**: This is a best-effort maintained project. For critical forensic use:
@@ -79,19 +100,19 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting and security policy.
 
 ### Choose Your Registry
 
-**Docker Hub** (docker.io) - For general use:
+**Docker Hub** (docker.io) - For General Users:
 ```bash
 docker pull 3soos3/solve-it-mcp:latest
 ```
 
-**GitHub Container Registry** (ghcr.io) - For forensic verification:
+**GitHub Container Registry** (ghcr.io) - For CI/CD & Forensic Compliance:
 ```bash
 docker pull ghcr.io/3soos3/solve-it-mcp:latest
 ```
 
 **Which to use?**
-- **Docker Hub**: Clean tags, best for production use
-- **GHCR**: Includes cryptographic signatures and SBOM attachments for forensic verification
+- **Docker Hub**: Easy to use, no GitHub account required, familiar to most developers
+- **GHCR**: For CI/CD pipelines and organizations requiring forensic compliance (cryptographic signatures, SBOM verification)
 
 ### Pull and Run
 

@@ -602,10 +602,10 @@ Every published Docker image includes an SBOM for complete dependency transparen
 gh run download <run-id> --name sbom-<commit-sha>
 
 # View SBOM attached to image (requires cosign)
-cosign download sbom 3soos3/solve-it-mcp:latest
+cosign download sbom ghcr.io/3soos3/solve-it-mcp:latest
 
 # View SBOM in container
-docker run --rm 3soos3/solve-it-mcp:latest cat /sbom/sbom.spdx.json
+docker run --rm ghcr.io/3soos3/solve-it-mcp:latest cat /sbom/sbom.spdx.json
 ```
 
 **Use Cases:**
@@ -621,7 +621,7 @@ All images are cryptographically signed using **Sigstore Cosign** (keyless signi
 **Verification:**
 ```bash
 # Verify image signature
-cosign verify 3soos3/solve-it-mcp:latest \
+cosign verify ghcr.io/3soos3/solve-it-mcp:latest \
   --certificate-identity-regexp=github \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 
@@ -634,7 +634,7 @@ cosign verify 3soos3/solve-it-mcp:latest \
 **Provenance:**
 ```bash
 # View build provenance
-cosign download attestation 3soos3/solve-it-mcp:latest | jq
+cosign download attestation ghcr.io/3soos3/solve-it-mcp:latest | jq
 
 # Shows:
 # - Source repository
@@ -661,7 +661,7 @@ Complete traceable history for every Docker image:
 
 **Metadata in Image Labels:**
 ```bash
-docker inspect 3soos3/solve-it-mcp:latest | jq '.[0].Config.Labels'
+docker inspect ghcr.io/3soos3/solve-it-mcp:latest | jq '.[0].Config.Labels'
 
 # Shows:
 # - org.opencontainers.image.created

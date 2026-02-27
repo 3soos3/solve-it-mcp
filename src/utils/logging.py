@@ -62,7 +62,7 @@ except Exception as e:
 
 ## Log Levels Guide
 
-- **DEBUG**: Detailed diagnostic information, typically of interest only when 
+- **DEBUG**: Detailed diagnostic information, typically of interest only when
   diagnosing problems
 - **INFO**: General information about tool execution (default level)
 - **WARNING**: Something unexpected happened, but the tool is still working

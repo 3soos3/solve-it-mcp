@@ -472,5 +472,6 @@ kubectl logs <pod-name> | grep -i "memory\|oom"
 
 - **Helm Chart Repository**: https://github.com/3soos3/solveit-charts
 - **Docker Images**: https://hub.docker.com/r/3soos3/solve-it-mcp
+- **GHCR Images (Advanced)**: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
 - **MCP Specification**: https://modelcontextprotocol.io
 - **SOLVE-IT Dataset**: https://github.com/SOLVE-IT-DF/solve-it
