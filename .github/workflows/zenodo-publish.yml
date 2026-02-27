@@ -233,6 +233,8 @@ jobs:
     name: Wait for Zenodo DOI
     runs-on: ubuntu-latest
     needs: create-release
+    permissions:
+      contents: read
     outputs:
       doi: ${{ steps.get_doi.outputs.doi }}
       concept_doi: ${{ steps.get_doi.outputs.concept_doi }}
