@@ -156,7 +156,7 @@ spec:
     spec:
       containers:
       - name: solveit-mcp
-        image: ghcr.io/3soos3/solve-it-mcp:stable
+        image: 3soos3/solve-it-mcp:stable
         env:
         # Transport (always HTTP in Kubernetes)
         - name: MCP_TRANSPORT
@@ -471,7 +471,7 @@ kubectl logs <pod-name> | grep -i "memory\|oom"
 ## Resources
 
 - **Helm Chart Repository**: https://github.com/3soos3/solveit-charts
-- **Docker Images (GHCR)**: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
-- **Docker Images (Docker Hub)**: https://hub.docker.com/r/3soos3/solve-it-mcp
+- **Docker Images**: https://hub.docker.com/r/3soos3/solve-it-mcp
+- **GHCR Images (Advanced)**: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
 - **MCP Specification**: https://modelcontextprotocol.io
 - **SOLVE-IT Dataset**: https://github.com/SOLVE-IT-DF/solve-it
