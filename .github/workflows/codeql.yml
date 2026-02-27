@@ -1,0 +1,67 @@
+name: CodeQL - SAST
+
+# Static Application Security Testing using CodeQL
+# Scans Python code for security vulnerabilities
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    # Run weekly on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['python']
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@47b3d888fe66b639e431e59a813c7654b9f06e9b # v3.24.6
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+          # Custom queries for forensic software
+          config: |
+            name: "CodeQL Config"
+            disable-default-queries: false
+            queries:
+              - uses: security-extended
+              - uses: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@47b3d888fe66b639e431e59a813c7654b9f06e9b # v3.24.6
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@47b3d888fe66b639e431e59a813c7654b9f06e9b # v3.24.6
+        with:
+          category: "/language:${{matrix.language}}"
+          upload: true
+
+      - name: Create summary
+        if: always()
+        run: |
+          echo "## CodeQL SAST Scan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Language**: Python" >> $GITHUB_STEP_SUMMARY
+          echo "**Queries**: security-extended, security-and-quality" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Results uploaded to Security tab: https://github.com/${{ github.repository }}/security/code-scanning" >> $GITHUB_STEP_SUMMARY

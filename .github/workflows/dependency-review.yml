@@ -1,0 +1,41 @@
+name: Dependency Review
+
+# Prevents introduction of vulnerable or non-compliant dependencies in PRs
+# Blocks merges with critical/high vulnerabilities
+
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: Review Dependencies
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@0c155c5e8556a497adf53f2c18edabf945ed8e70 # v4.0.0
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-3.0, AGPL-3.0
+          comment-summary-in-pr: always
+          warn-only: false
+
+      - name: Create summary
+        if: always()
+        run: |
+          echo "## Dependency Review" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Severity Threshold**: High" >> $GITHUB_STEP_SUMMARY
+          echo "**Blocked Licenses**: GPL-3.0, AGPL-3.0" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "This check prevents introduction of vulnerable dependencies." >> $GITHUB_STEP_SUMMARY
