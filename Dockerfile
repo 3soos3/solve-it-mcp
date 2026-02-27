@@ -6,7 +6,7 @@
 # ============================================================================
 # Stage 1: Builder
 # ============================================================================
-FROM python:3.12-alpine AS builder
+FROM python:3.14-alpine AS builder
 
 # Install system dependencies needed for building Python packages
 # Alpine uses apk instead of apt-get
@@ -35,7 +35,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 # ============================================================================
 # Stage 2: Runtime
 # ============================================================================
-FROM python:3.12-alpine AS runtime
+FROM python:3.14-alpine AS runtime
 
 # Build arguments for flexibility
 ARG SOLVE_IT_SOURCE=github
