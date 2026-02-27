@@ -9,6 +9,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org)
 [![Docker Pulls](https://img.shields.io/docker/pulls/3soos3/solve-it-mcp)](https://hub.docker.com/r/3soos3/solve-it-mcp)
 [![Docker Image Size](https://img.shields.io/docker/image-size/3soos3/solve-it-mcp/latest)](https://hub.docker.com/r/3soos3/solve-it-mcp)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Production-ready MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base.**
@@ -24,6 +25,23 @@ SOLVE-IT is a systematic digital forensics knowledge base inspired by MITRE ATT&
 - **🔄 Dual Transport Modes**: HTTP/SSE for Kubernetes, stdio for desktop clients
 - **📦 Minimal Footprint**: 60MB Alpine-based image (highly optimized)
 - **☸️ Kubernetes Native**: Production-grade Helm charts with health checks and auto-scaling
+
+## 📖 Citation
+
+If you use this software in forensic investigations or research, please cite it:
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+
+```bibtex
+@software{solve_it_mcp,
+  author = {3soos3},
+  title = {SOLVE-IT MCP Server},
+  doi = {10.5281/zenodo.XXXXXXX},
+  url = {https://github.com/3soos3/solve-it-mcp}
+}
+```
+
+See [CITATION.cff](CITATION.cff) for detailed citation information.
 
 ## What is SOLVE-IT?
 

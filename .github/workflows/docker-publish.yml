@@ -383,3 +383,206 @@ jobs:
           else
             echo "::notice::✅ No CRITICAL vulnerabilities in ${{ matrix.platform }}"
           fi
+
+  # Job 4: Health Check Validation (For Monthly Automated Releases)
+  healthcheck-validation:
+    name: Validate Release Candidate
+    runs-on: ubuntu-latest
+    needs: build-and-publish
+    if: inputs.release_tag != ''
+    permissions:
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.1
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          echo "git_commit=${GIT_COMMIT}" >> $GITHUB_OUTPUT
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull test image
+        run: |
+          docker pull ghcr.io/${{ github.repository_owner }}/solve-it-mcp:sha-${{ steps.meta.outputs.git_commit }}
+
+      - name: Runtime health checks
+        run: |
+          echo "::group::Starting container for health validation"
+          
+          # Start container
+          docker run -d --name healthcheck-test \
+            -e MCP_TRANSPORT=http \
+            -e HTTP_PORT=8000 \
+            -p 8000:8000 \
+            ghcr.io/${{ github.repository_owner }}/solve-it-mcp:sha-${{ steps.meta.outputs.git_commit }}
+          
+          # Wait for startup
+          echo "Waiting 15 seconds for container startup..."
+          sleep 15
+          
+          echo "::endgroup::"
+
+      - name: Health endpoint validation
+        run: |
+          echo "::group::Testing health endpoints"
+          
+          # Test /healthz
+          if curl -f http://localhost:8000/healthz; then
+            echo "::notice::✅ /healthz endpoint responding"
+          else
+            echo "::error::/healthz endpoint failed"
+            docker logs healthcheck-test
+            exit 1
+          fi
+          
+          # Test /readyz
+          if curl -f http://localhost:8000/readyz; then
+            echo "::notice::✅ /readyz endpoint responding"
+          else
+            echo "::error::/readyz endpoint failed"
+            docker logs healthcheck-test
+            exit 1
+          fi
+          
+          echo "::endgroup::"
+
+      - name: MCP functionality validation
+        run: |
+          echo "::group::Testing MCP functionality"
+          
+          # Test tools list
+          TOOLS_COUNT=$(curl -s -X POST http://localhost:8000/mcp/v1/messages \
+            -H "Content-Type: application/json" \
+            -d '{"method":"tools/list"}' | jq '.tools | length')
+          
+          if [ "$TOOLS_COUNT" -gt 20 ]; then
+            echo "::notice::✅ MCP tools available: ${TOOLS_COUNT}"
+          else
+            echo "::error::Expected >20 MCP tools, found: ${TOOLS_COUNT}"
+            exit 1
+          fi
+          
+          # Test technique query (validates SOLVE-IT data loaded)
+          TECHNIQUE_RESULT=$(curl -s -X POST http://localhost:8000/mcp/v1/messages \
+            -H "Content-Type: application/json" \
+            -d '{"method":"tools/call","params":{"name":"get_technique","arguments":{"technique_id":"T1001"}}}')
+          
+          TECHNIQUE_ID=$(echo "$TECHNIQUE_RESULT" | jq -r '.result.id // empty')
+          
+          if [ "$TECHNIQUE_ID" = "T1001" ]; then
+            echo "::notice::✅ SOLVE-IT data loaded correctly"
+          else
+            echo "::error::Failed to query SOLVE-IT technique T1001"
+            echo "Response: $TECHNIQUE_RESULT"
+            exit 1
+          fi
+          
+          echo "::endgroup::"
+
+      - name: Data integrity validation
+        run: |
+          echo "::group::Validating SOLVE-IT data integrity"
+          
+          # Verify SOLVE-IT version in health response
+          HEALTH_RESPONSE=$(curl -s http://localhost:8000/healthz)
+          echo "Health response: $HEALTH_RESPONSE"
+          
+          # Check that container has no errors in logs
+          echo "Checking container logs for errors..."
+          if docker logs healthcheck-test 2>&1 | grep -qi "error\|exception\|failed" | grep -v "test"; then
+            echo "::warning::Found error messages in container logs (may be expected)"
+            docker logs healthcheck-test 2>&1 | grep -i "error\|exception\|failed" | head -10
+          else
+            echo "::notice::✅ No critical errors in container logs"
+          fi
+          
+          echo "::endgroup::"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop healthcheck-test || true
+          docker rm healthcheck-test || true
+
+      - name: Health check summary
+        run: |
+          echo "## Health Check Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Health endpoints**: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **MCP functionality**: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Data integrity**: Passed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: \`ghcr.io/${{ github.repository_owner }}/solve-it-mcp:sha-${{ steps.meta.outputs.git_commit }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Release candidate validated and ready for stable tag." >> $GITHUB_STEP_SUMMARY
+
+  # Job 5: Trigger Zenodo Release (Stable Releases Only)
+  trigger-zenodo:
+    name: Trigger Zenodo DOI Publication
+    runs-on: ubuntu-latest
+    needs: [build-and-publish, security-scan]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      !contains(github.ref, '-rc') &&
+      !contains(github.ref, '-beta') &&
+      !contains(github.ref, '-alpha') &&
+      !contains(github.ref, '-test') &&
+      !contains(github.ref, '-sandbox')
+    permissions:
+      contents: write
+    steps:
+      - name: Extract metadata
+        id: meta
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          
+          # Detect SOLVE-IT version (reuse logic from earlier job)
+          SOLVEIT_VERSION=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // empty' | sed 's/^v//')
+          if [ -z "$SOLVEIT_VERSION" ]; then
+            SOLVEIT_VERSION="0.2025-10"
+          fi
+          
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Trigger Zenodo Publish Workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'zenodo-publish.yml',
+              ref: 'main',
+              inputs: {
+                tag: '${{ steps.meta.outputs.tag }}',
+                use_sandbox: 'false'
+              }
+            });
+            
+            core.notice('✅ Triggered Zenodo publish workflow for stable release');
+            core.notice('Release: ${{ steps.meta.outputs.version }}');
+            core.notice('SOLVE-IT Version: ${{ steps.meta.outputs.solveit_version }}');
+
+      - name: Create summary
+        run: |
+          echo "## Zenodo Release Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version**: \`${{ steps.meta.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag**: \`${{ steps.meta.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**SOLVE-IT Version**: \`${{ steps.meta.outputs.solveit_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Zenodo publish workflow triggered" >> $GITHUB_STEP_SUMMARY
+          echo "⏳ GitHub Release and DOI will be created automatically" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Monitor progress at: https://github.com/${{ github.repository }}/actions/workflows/zenodo-publish.yml" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,411 @@
+name: Zenodo - Publish Release with DOI
+
+# Creates comprehensive GitHub Release for forensic software
+# Triggers Zenodo DOI creation for stable releases
+# Updates CITATION.cff and README with DOI
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v0.2025-10-0.1.0)'
+        required: true
+        type: string
+      solveit_version:
+        description: 'SOLVE-IT version'
+        required: true
+        type: string
+      use_sandbox:
+        description: 'Use Zenodo sandbox for testing'
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      ZENODO_TOKEN:
+        required: false
+      ZENODO_SANDBOX_TOKEN:
+        required: false
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v0.2025-10-0.1.0)'
+        required: true
+        type: string
+      use_sandbox:
+        description: 'Use Zenodo sandbox for testing'
+        type: boolean
+        default: true
+
+env:
+  ZENODO_PROD_URL: https://zenodo.org
+  ZENODO_SANDBOX_URL: https://sandbox.zenodo.org
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    outputs:
+      release_id: ${{ steps.create_release.outputs.id }}
+      release_url: ${{ steps.create_release.outputs.html_url }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.1
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Extract version metadata
+        id: meta
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          SOLVEIT_VERSION="${{ inputs.solveit_version || '0.2025-10' }}"
+          
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "git_commit=${GIT_COMMIT}" >> $GITHUB_OUTPUT
+          echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
+          echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Download SBOM artifacts
+        uses: actions/download-artifact@v4.1.2
+        with:
+          name: sbom-${{ steps.meta.outputs.git_commit }}
+          path: ./sbom/
+        continue-on-error: true
+
+      - name: Get multi-arch digests
+        id: digests
+        run: |
+          # Get image digests for all architectures
+          docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/solve-it-mcp:sha-${{ steps.meta.outputs.git_commit }} \
+            --format '{{json .}}' > manifest.json
+          
+          AMD64_DIGEST=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "amd64") | .digest')
+          ARM64_DIGEST=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "arm64") | .digest')
+          ARMV7_DIGEST=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "arm" and .platform.variant == "v7") | .digest')
+          
+          AMD64_SIZE=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "amd64") | .size')
+          ARM64_SIZE=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "arm64") | .size')
+          ARMV7_SIZE=$(cat manifest.json | jq -r '.manifest.manifests[] | select(.platform.architecture == "arm" and .platform.variant == "v7") | .size')
+          
+          echo "amd64_digest=${AMD64_DIGEST}" >> $GITHUB_OUTPUT
+          echo "arm64_digest=${ARM64_DIGEST}" >> $GITHUB_OUTPUT
+          echo "armv7_digest=${ARMV7_DIGEST}" >> $GITHUB_OUTPUT
+          echo "amd64_size=$((AMD64_SIZE / 1024 / 1024))" >> $GITHUB_OUTPUT
+          echo "arm64_size=$((ARM64_SIZE / 1024 / 1024))" >> $GITHUB_OUTPUT
+          echo "armv7_size=$((ARMV7_SIZE / 1024 / 1024))" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md <<'EOF'
+          ## Release ${{ steps.meta.outputs.version }}
+
+          ### SOLVE-IT Knowledge Base Version
+          - **Version**: ${{ steps.meta.outputs.solveit_version }}
+          - **Source**: https://github.com/SOLVE-IT-DF/solve-it
+          - **Data Snapshot**: ${{ steps.meta.outputs.git_commit }}
+
+          ### MCP Server Version
+          - **Version**: ${{ steps.meta.outputs.version }}
+          - **Type**: Stable Release
+
+          ---
+
+          ## 📦 Installation
+
+          ### Docker (Recommended)
+          ```bash
+          # Docker Hub (for general users)
+          docker pull 3soos3/solve-it-mcp:${{ steps.meta.outputs.tag }}
+
+          # GitHub Container Registry (for CI/CD & forensic compliance)
+          docker pull ghcr.io/${{ github.repository }}/solve-it-mcp:${{ steps.meta.outputs.tag }}
+          ```
+
+          ### Verify Authenticity (GHCR Only)
+          ```bash
+          # Verify image signature (forensic verification)
+          cosign verify ghcr.io/${{ github.repository }}/solve-it-mcp:${{ steps.meta.outputs.tag }} \
+            --certificate-identity-regexp=github \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+
+          # Download SBOM (software bill of materials)
+          cosign download sbom ghcr.io/${{ github.repository }}/solve-it-mcp:${{ steps.meta.outputs.tag }}
+          ```
+
+          ---
+
+          ## 🔒 Security & Forensic Verification
+
+          ### Multi-Architecture Support
+          | Architecture | Digest | Size |
+          |--------------|--------|------|
+          | linux/amd64  | `${{ steps.digests.outputs.amd64_digest }}` | ${{ steps.digests.outputs.amd64_size }} MB |
+          | linux/arm64  | `${{ steps.digests.outputs.arm64_digest }}` | ${{ steps.digests.outputs.arm64_size }} MB |
+          | linux/arm/v7 | `${{ steps.digests.outputs.armv7_digest }}` | ${{ steps.digests.outputs.armv7_size }} MB |
+
+          ### Software Bill of Materials (SBOM)
+          - **Format**: SPDX 2.3, CycloneDX 1.4, Syft native
+          - **Attached Files**: 
+            - `sbom-spdx.json` (SPDX format)
+            - `sbom-cyclonedx.json` (CycloneDX format)
+            - `sbom-syft.json` (Syft native format)
+
+          ### Provenance
+          - **Build Workflow**: `.github/workflows/docker-publish.yml`
+          - **Git Commit**: [${{ steps.meta.outputs.git_commit }}](https://github.com/${{ github.repository }}/commit/${{ steps.meta.outputs.git_commit }})
+          - **Build Date**: ${{ steps.meta.outputs.build_date }}
+          - **Builder**: GitHub Actions (ubuntu-latest)
+          - **Signed**: Yes (Cosign keyless signing on GHCR)
+
+          ---
+
+          ## 📚 Documentation
+          - [Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/docs/DOCKER.md)
+          - [Kubernetes Deployment](https://github.com/${{ github.repository }}/blob/main/docs/KUBERNETES.md)
+          - [Security Policy](https://github.com/${{ github.repository }}/blob/main/SECURITY.md)
+
+          ---
+
+          ## 📖 Citation
+          If you use this software in forensic investigations or research, please cite:
+
+          ```bibtex
+          @software{solve_it_mcp_${{ steps.meta.outputs.version }},
+            author = {3soos3},
+            title = {SOLVE-IT MCP Server},
+            version = {${{ steps.meta.outputs.version }}},
+            date = {${{ steps.meta.outputs.build_date }}},
+            url = {https://github.com/${{ github.repository }}}
+          }
+          ```
+
+          **Note**: DOI will be added automatically after Zenodo publishes this release.
+
+          ---
+
+          ## 🔗 Related Resources
+          - **SOLVE-IT Dataset**: https://github.com/SOLVE-IT-DF/solve-it
+          - **Original MCP Server**: https://github.com/CKE-Proto/solve_it_mcp
+          - **Docker Hub**: https://hub.docker.com/r/3soos3/solve-it-mcp
+          - **GHCR**: https://github.com/${{ github.repository }}/pkgs/container/solve-it-mcp
+
+          ---
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/commits/${{ steps.meta.outputs.tag }}
+          EOF
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: Release ${{ steps.meta.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            sbom/*.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release summary
+        run: |
+          echo "## GitHub Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release**: [${{ steps.meta.outputs.version }}](${{ steps.create_release.outputs.html_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag**: \`${{ steps.meta.outputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**SOLVE-IT Version**: \`${{ steps.meta.outputs.solveit_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ GitHub Release published" >> $GITHUB_STEP_SUMMARY
+          echo "⏳ Waiting for Zenodo to process release..." >> $GITHUB_STEP_SUMMARY
+
+  wait-for-zenodo:
+    name: Wait for Zenodo DOI
+    runs-on: ubuntu-latest
+    needs: create-release
+    outputs:
+      doi: ${{ steps.get_doi.outputs.doi }}
+      concept_doi: ${{ steps.get_doi.outputs.concept_doi }}
+      zenodo_url: ${{ steps.get_doi.outputs.zenodo_url }}
+    steps:
+      - name: Determine Zenodo environment
+        id: zenodo_env
+        run: |
+          USE_SANDBOX="${{ inputs.use_sandbox }}"
+          if [ "$USE_SANDBOX" = "true" ]; then
+            echo "zenodo_url=${{ env.ZENODO_SANDBOX_URL }}" >> $GITHUB_OUTPUT
+            echo "zenodo_token=${{ secrets.ZENODO_SANDBOX_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "environment=sandbox" >> $GITHUB_OUTPUT
+          else
+            echo "zenodo_url=${{ env.ZENODO_PROD_URL }}" >> $GITHUB_OUTPUT
+            echo "zenodo_token=${{ secrets.ZENODO_TOKEN }}" >> $GITHUB_OUTPUT
+            echo "environment=production" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Wait for Zenodo processing
+        run: |
+          echo "::group::Waiting for Zenodo to detect GitHub release"
+          echo "Environment: ${{ steps.zenodo_env.outputs.environment }}"
+          echo "Zenodo monitors GitHub releases and creates deposits automatically"
+          echo "This usually takes 5-15 minutes after release creation"
+          echo "::endgroup::"
+          
+          # Wait 5 minutes for Zenodo webhook to process
+          echo "Waiting 5 minutes for Zenodo webhook..."
+          sleep 300
+
+      - name: Get Zenodo DOI
+        id: get_doi
+        run: |
+          ZENODO_URL="${{ steps.zenodo_env.outputs.zenodo_url }}"
+          TOKEN="${{ steps.zenodo_env.outputs.zenodo_token }}"
+          TAG="${{ inputs.tag || github.ref_name }}"
+          
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::Zenodo token not configured for ${{ steps.zenodo_env.outputs.environment }}"
+            echo "::warning::Skipping DOI retrieval"
+            echo "doi=PENDING" >> $GITHUB_OUTPUT
+            echo "concept_doi=PENDING" >> $GITHUB_OUTPUT
+            echo "zenodo_url=PENDING" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "::group::Searching for Zenodo deposit"
+          
+          # Query Zenodo API for deposits matching this repo
+          RESPONSE=$(curl -s "${ZENODO_URL}/api/deposit/depositions?q=github:${{ github.repository }}" \
+            -H "Authorization: Bearer ${TOKEN}")
+          
+          # Find deposit for this specific tag
+          DOI=$(echo "$RESPONSE" | jq -r ".[] | select(.metadata.version == \"${TAG#v}\") | .metadata.doi // empty" | head -1)
+          CONCEPT_DOI=$(echo "$RESPONSE" | jq -r ".[] | select(.metadata.version == \"${TAG#v}\") | .conceptdoi // empty" | head -1)
+          ZENODO_RECORD_URL=$(echo "$RESPONSE" | jq -r ".[] | select(.metadata.version == \"${TAG#v}\") | .links.record_html // empty" | head -1)
+          
+          if [ -n "$DOI" ]; then
+            echo "::notice::✅ DOI found: ${DOI}"
+            echo "::notice::✅ Concept DOI: ${CONCEPT_DOI}"
+            echo "::notice::✅ Zenodo URL: ${ZENODO_RECORD_URL}"
+            echo "doi=${DOI}" >> $GITHUB_OUTPUT
+            echo "concept_doi=${CONCEPT_DOI}" >> $GITHUB_OUTPUT
+            echo "zenodo_url=${ZENODO_RECORD_URL}" >> $GITHUB_OUTPUT
+          else
+            echo "::warning::DOI not yet available (Zenodo may still be processing)"
+            echo "::warning::Check manually at: ${ZENODO_URL}/account/settings/github/"
+            echo "doi=PENDING" >> $GITHUB_OUTPUT
+            echo "concept_doi=PENDING" >> $GITHUB_OUTPUT
+            echo "zenodo_url=PENDING" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "::endgroup::"
+
+  update-citations:
+    name: Update Citation Files
+    runs-on: ubuntu-latest
+    needs: [create-release, wait-for-zenodo]
+    if: needs.wait-for-zenodo.outputs.doi != 'PENDING'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.1
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version metadata
+        id: meta
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          BUILD_DATE=$(date -u +"%Y-%m-%d")
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "build_date=${BUILD_DATE}" >> $GITHUB_OUTPUT
+
+      - name: Update CITATION.cff
+        run: |
+          DOI="${{ needs.wait-for-zenodo.outputs.doi }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          DATE="${{ steps.meta.outputs.build_date }}"
+          
+          # Update version
+          sed -i "s/^version: .*/version: \"${VERSION}\"/" CITATION.cff
+          
+          # Update date
+          sed -i "s/^date-released: .*/date-released: \"${DATE}\"/" CITATION.cff
+          
+          # Add or update DOI
+          if grep -q "^doi:" CITATION.cff; then
+            sed -i "s|^doi: .*|doi: ${DOI}|" CITATION.cff
+          else
+            # Remove comment and add DOI
+            sed -i "s|^# doi: .*|doi: ${DOI}|" CITATION.cff
+          fi
+          
+          echo "::notice::Updated CITATION.cff with version ${VERSION} and DOI ${DOI}"
+
+      - name: Update README.md
+        run: |
+          CONCEPT_DOI="${{ needs.wait-for-zenodo.outputs.concept_doi }}"
+          
+          # Update or add DOI badge in README
+          if grep -q "zenodo.org/badge/DOI" README.md; then
+            # Update existing badge
+            sed -i "s|https://zenodo.org/badge/DOI/.*\.svg|https://zenodo.org/badge/DOI/${CONCEPT_DOI}.svg|g" README.md
+            sed -i "s|https://doi.org/.*)|https://doi.org/${CONCEPT_DOI})|g" README.md
+          else
+            # Add badge after Docker Pulls badge
+            sed -i "/Docker Pulls/a [![DOI](https://zenodo.org/badge/DOI/${CONCEPT_DOI}.svg)](https://doi.org/${CONCEPT_DOI})" README.md
+          fi
+          
+          # Update citation section DOI if it exists
+          if grep -q "@software{solve_it_mcp" README.md; then
+            sed -i "s|doi = {.*}|doi = {${CONCEPT_DOI}}|" README.md
+          fi
+          
+          echo "::notice::Updated README.md with Concept DOI ${CONCEPT_DOI}"
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add CITATION.cff README.md
+          
+          if git diff --staged --quiet; then
+            echo "::notice::No changes to commit"
+          else
+            git commit -m "docs: update DOI for release ${{ steps.meta.outputs.version }}" \
+              -m "" \
+              -m "Automatically updated by Zenodo publish workflow." \
+              -m "" \
+              -m "- Updated CITATION.cff with version ${{ steps.meta.outputs.version }}" \
+              -m "- Added DOI: ${{ needs.wait-for-zenodo.outputs.doi }}" \
+              -m "- Updated README.md with Concept DOI: ${{ needs.wait-for-zenodo.outputs.concept_doi }}"
+            
+            git push origin main
+            echo "::notice::✅ Pushed citation updates to main branch"
+          fi
+
+      - name: Create summary
+        run: |
+          echo "## Zenodo DOI Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version DOI**: [${{ needs.wait-for-zenodo.outputs.doi }}](https://doi.org/${{ needs.wait-for-zenodo.outputs.doi }})" >> $GITHUB_STEP_SUMMARY
+          echo "**Concept DOI**: [${{ needs.wait-for-zenodo.outputs.concept_doi }}](https://doi.org/${{ needs.wait-for-zenodo.outputs.concept_doi }})" >> $GITHUB_STEP_SUMMARY
+          echo "**Zenodo Record**: ${{ needs.wait-for-zenodo.outputs.zenodo_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ CITATION.cff updated" >> $GITHUB_STEP_SUMMARY
+          echo "✅ README.md badge updated" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Changes committed to main branch" >> $GITHUB_STEP_SUMMARY

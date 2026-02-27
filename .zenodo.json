@@ -1,0 +1,57 @@
+{
+  "title": "SOLVE-IT MCP Server - Systematic Digital Forensics Knowledge Base for LLMs",
+  "description": "Production-ready MCP (Model Context Protocol) server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base. SOLVE-IT is a systematic framework inspired by MITRE ATT&CK for digital forensics, containing comprehensive mappings of investigation techniques, weaknesses, and mitigations. This server enables forensic investigators to leverage AI assistants with access to structured forensic methodology and best practices.",
+  "creators": [
+    {
+      "name": "3soos3"
+    }
+  ],
+  "contributors": [],
+  "license": "MIT",
+  "keywords": [
+    "digital-forensics",
+    "mcp-server",
+    "model-context-protocol",
+    "solve-it",
+    "llm",
+    "knowledge-base",
+    "forensic-investigation",
+    "cybersecurity",
+    "incident-response",
+    "mitre-attack",
+    "forensic-framework"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/SOLVE-IT-DF/solve-it",
+      "relation": "isSupplementTo",
+      "scheme": "url",
+      "resource_type": "dataset"
+    },
+    {
+      "identifier": "https://github.com/CKE-Proto/solve_it_mcp",
+      "relation": "isDerivedFrom",
+      "scheme": "url",
+      "resource_type": "software"
+    },
+    {
+      "identifier": "https://hub.docker.com/r/3soos3/solve-it-mcp",
+      "relation": "isIdenticalTo",
+      "scheme": "url",
+      "resource_type": "software"
+    },
+    {
+      "identifier": "https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp",
+      "relation": "isIdenticalTo",
+      "scheme": "url",
+      "resource_type": "software"
+    }
+  ],
+  "communities": [
+    {
+      "identifier": "digital-forensics"
+    }
+  ],
+  "upload_type": "software",
+  "access_right": "open"
+}
