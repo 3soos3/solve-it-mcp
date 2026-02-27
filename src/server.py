@@ -37,6 +37,7 @@ from utils.telemetry import TelemetryManager
 try:
     from opentelemetry import trace
     from opentelemetry.trace import Status, StatusCode
+
     OTEL_AVAILABLE = True
 except ImportError:
     OTEL_AVAILABLE = False
@@ -76,7 +77,7 @@ from utils.shared_security import SharedSecurityConfig
 
 def _noop_context():
     """No-op context manager for when OpenTelemetry is disabled.
-    
+
     Returns:
         A context manager that does nothing (nullcontext)
     """
@@ -97,51 +98,55 @@ async def main() -> None:
     # Load configuration from environment
     logger.info("Loading server configuration from environment")
     config = load_config()
-    
+
     # Initialize OpenTelemetry if enabled
     telemetry_manager = None
     metrics = None
-    
+
     if config.otel.enabled and OTEL_AVAILABLE:
         logger.info("Initializing OpenTelemetry observability")
         try:
             telemetry_manager = TelemetryManager(config.otel)
             telemetry_manager.initialize()
-            
+
             # Create metrics recorder
             metrics = MCPMetrics()
-            
+
             logger.info(
                 f"OpenTelemetry initialized: service={config.otel.service_name}, "
                 f"environment={config.otel.environment}, "
                 f"sampling_rate={config.otel.trace_sampling_rate}"
             )
         except Exception as e:
-            logger.warning(f"Failed to initialize OpenTelemetry: {e}. Continuing without telemetry.")
+            logger.warning(
+                f"Failed to initialize OpenTelemetry: {e}. Continuing without telemetry."
+            )
             telemetry_manager = None
             metrics = None
     elif config.otel.enabled and not OTEL_AVAILABLE:
-        logger.warning("OpenTelemetry enabled in config but dependencies not installed. Install with: pip install opentelemetry-api opentelemetry-sdk")
+        logger.warning(
+            "OpenTelemetry enabled in config but dependencies not installed. Install with: pip install opentelemetry-api opentelemetry-sdk"
+        )
     else:
         logger.info("OpenTelemetry disabled in configuration")
 
     # Parse command line arguments (can override config.transport)
     parser = argparse.ArgumentParser(description="SOLVE-IT MCP Server")
-    
+
     # Transport selection - support both STDIO and HTTP
     transport_choices = ["stdio"]
     if HTTP_AVAILABLE:
         transport_choices.append("http")
-    
+
     parser.add_argument(
-        "--transport", 
-        choices=transport_choices, 
+        "--transport",
+        choices=transport_choices,
         default=config.transport,
-        help=f"Transport protocol (choices: {', '.join(transport_choices)})"
+        help=f"Transport protocol (choices: {', '.join(transport_choices)})",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Override config transport if specified on CLI
     if args.transport:
         config.transport = args.transport
@@ -166,7 +171,7 @@ async def main() -> None:
         logger.info("Initializing shared security configuration")
         shared_security_manager = SharedSecurityConfig()
         shared_security_config = shared_security_manager.get_security_config()
-        
+
         # Log shared security config stats
         sec_stats = shared_security_manager.get_security_config_stats()
         logger.info(
@@ -175,7 +180,7 @@ async def main() -> None:
             f"default_timeout={sec_stats['default_timeout']}s, "
             f"singleton_id: {sec_stats['singleton_id']}"
         )
-        
+
         security = SecurityMiddleware(shared_security_config)
         logger.info("Security middleware initialized with Layer 1 protections")
     except Exception as e:
@@ -185,11 +190,13 @@ async def main() -> None:
 
     # PHASE 1: Initialize shared knowledge base ONCE
     try:
-        logger.info("Initializing shared SOLVE-IT knowledge base (replaces 20x individual initialization)")
+        logger.info(
+            "Initializing shared SOLVE-IT knowledge base (replaces 20x individual initialization)"
+        )
         shared_kb_manager = SharedKnowledgeBase()
         shared_kb = shared_kb_manager.get_knowledge_base()
         data_path = shared_kb_manager.get_data_path()
-        
+
         # Log shared KB stats
         stats = shared_kb_manager.get_knowledge_base_stats()
         logger.info(
@@ -197,7 +204,7 @@ async def main() -> None:
             f"{stats['weaknesses']} weaknesses, {stats['mitigations']} mitigations, "
             f"singleton_id: {stats['singleton_id']}"
         )
-        
+
     except Exception as e:
         logger.critical(f"Failed to initialize shared knowledge base: {e}")
         logger.critical("Server startup aborted - shared knowledge base initialization failed")
@@ -206,7 +213,7 @@ async def main() -> None:
     # PHASE 2: Initialize and register SOLVE-IT tools WITHOUT individual KB initialization
     try:
         logger.info("Creating SOLVE-IT tools with shared knowledge base architecture")
-        
+
         # Create tools with init_kb=False to prevent individual KB initialization
         tools: list[BaseTool[Any]] = [
             # Core query tools
@@ -215,27 +222,22 @@ async def main() -> None:
             GetTechniqueDetailsTool(init_kb=False),
             GetWeaknessDetailsTool(init_kb=False),
             GetMitigationDetailsTool(init_kb=False),
-            
             # Forward relationship query tools
             GetWeaknessesForTechniqueTool(init_kb=False),
             GetMitigationsForWeaknessTool(init_kb=False),
-            
             # Reverse relationship query tools
             GetTechniquesForWeaknessTool(init_kb=False),
             GetWeaknessesForMitigationTool(init_kb=False),
             GetTechniquesForMitigationTool(init_kb=False),
-            
             # Objective/Mapping management tools
             ListObjectivesTool(init_kb=False),
             GetTechniquesForObjectiveTool(init_kb=False),
             ListAvailableMappingsTool(init_kb=False),
             LoadObjectiveMappingTool(init_kb=False),
-            
             # Bulk retrieval tools (concise format)
             GetAllTechniquesWithNameAndIdTool(init_kb=False),
             GetAllWeaknessesWithNameAndIdTool(init_kb=False),
             GetAllMitigationsWithNameAndIdTool(init_kb=False),
-            
             # Bulk retrieval tools (full detail format)
             GetAllTechniquesWithFullDetailTool(init_kb=False),
             GetAllWeaknessesWithFullDetailTool(init_kb=False),
@@ -251,9 +253,13 @@ async def main() -> None:
         tool_registry: dict[str, BaseTool[Any]] = {tool.name: tool for tool in tools}
         available_tools: list[str] = [tool.name for tool in tools]
 
-        logger.info(f"Successfully configured {len(tools)} SOLVE-IT tools with shared architecture: {available_tools}")
+        logger.info(
+            f"Successfully configured {len(tools)} SOLVE-IT tools with shared architecture: {available_tools}"
+        )
         logger.info("All tools passed Layer 2 security configuration validation")
-        logger.info(f"Performance improvement: 1x knowledge base initialization instead of {len(tools)}x")
+        logger.info(
+            f"Performance improvement: 1x knowledge base initialization instead of {len(tools)}x"
+        )
 
     except Exception as e:
         logger.critical(f"Failed to initialize SOLVE-IT tools: {e}")
@@ -264,9 +270,7 @@ async def main() -> None:
     async def handle_list_tools() -> list[types.Tool]:
         """List available tools with comprehensive logging."""
         correlation_id = f"list_{uuid.uuid4().hex[:8]}"
-        logger.info(
-            "Tool list request received", extra={"correlation_id": correlation_id}
-        )
+        logger.info("Tool list request received", extra={"correlation_id": correlation_id})
 
         try:
             tool_list = []
@@ -304,7 +308,7 @@ async def main() -> None:
         # Generate correlation ID and set context
         correlation_id = CorrelationContext.generate_correlation_id()
         CorrelationContext.set_correlation_id(correlation_id)
-        
+
         start_time = time.time()
 
         # Track active requests
@@ -313,13 +317,17 @@ async def main() -> None:
 
         # Start OpenTelemetry span if available
         tracer = trace.get_tracer(__name__) if OTEL_AVAILABLE else None
-        span_context = tracer.start_as_current_span(
-            f"mcp.tool.{name}",
-            attributes={
-                "mcp.tool.name": name,
-                "mcp.correlation_id": correlation_id,
-            }
-        ) if tracer else _noop_context()
+        span_context = (
+            tracer.start_as_current_span(
+                f"mcp.tool.{name}",
+                attributes={
+                    "mcp.tool.name": name,
+                    "mcp.correlation_id": correlation_id,
+                },
+            )
+            if tracer
+            else _noop_context()
+        )
 
         # Log request details (sanitized)
         arg_count = len(arguments) if arguments else 0
@@ -376,8 +384,10 @@ async def main() -> None:
                 )
 
                 # LAYER 1 SECURITY: Execution timeout (automatic, cannot be bypassed)
-                tool_timeout = getattr(tool, 'execution_timeout', shared_security_config.default_timeout)
-                
+                tool_timeout = getattr(
+                    tool, "execution_timeout", shared_security_config.default_timeout
+                )
+
                 async with security.execution_timeout(tool_timeout, name):
                     execution_start = time.time()
                     result = await tool.invoke(params)
@@ -494,7 +504,7 @@ async def main() -> None:
 
     # Server startup completed successfully
     logger.info("Server initialization completed successfully")
-    
+
     # Run server with selected transport
     try:
         if config.transport == "http":
@@ -502,7 +512,7 @@ async def main() -> None:
                 logger.critical("HTTP transport requested but dependencies not installed")
                 logger.critical("Install with: pip install starlette uvicorn")
                 raise RuntimeError("HTTP transport not available. Install starlette and uvicorn.")
-            
+
             logger.info(f"Starting HTTP/SSE transport on {config.http.host}:{config.http.port}")
             http_manager = HTTPTransportManager(server, config.http)
             await http_manager.run()

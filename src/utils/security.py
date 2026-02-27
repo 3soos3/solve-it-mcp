@@ -110,6 +110,10 @@ import os
 from pathlib import Path
 import re
 from time import monotonic
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..tools.base import BaseTool
 
 from .logging import get_logger
 
@@ -326,61 +330,63 @@ class RateLimiter:
 
 def validate_tool_security_config(tool: BaseTool) -> None:
     """Validate tool security configuration at registration time.
-    
+
     This function ensures that tools have valid security configurations
     and helps catch configuration errors early in the development process.
-    
+
     Args:
         tool: BaseTool instance to validate.
-        
+
     Raises:
         SecurityConfigError: If tool security configuration is invalid.
     """
     from .shared_security import get_shared_security_config
-    
+
     # Get shared security configuration
     config = get_shared_security_config()
-    
+
     # Validate execution timeout configuration
-    if hasattr(tool, 'execution_timeout'):
+    if hasattr(tool, "execution_timeout"):
         timeout = tool.execution_timeout
-        
+
         if timeout > config.max_timeout:
             raise SecurityConfigError(
                 f"Tool '{tool.name}' timeout ({timeout}s) exceeds maximum ({config.max_timeout}s). "
                 f"Reduce timeout or increase MCP_MAX_TIMEOUT environment variable."
             )
-        
-        if timeout > 60.0 and not getattr(tool, 'allow_long_execution', False):
+
+        if timeout > 60.0 and not getattr(tool, "allow_long_execution", False):
             raise SecurityConfigError(
                 f"Tool '{tool.name}' requests {timeout}s timeout but allow_long_execution=False. "
                 f"Set allow_long_execution=True to explicitly allow timeouts > 60s."
             )
-    
+
     # Validate path validation configuration
-    if getattr(tool, 'require_path_validation', False):
-        allowed_paths = getattr(tool, 'allowed_paths', [])
+    if getattr(tool, "require_path_validation", False):
+        allowed_paths = getattr(tool, "allowed_paths", [])
         if not allowed_paths:
             raise SecurityConfigError(
                 f"Tool '{tool.name}' requires path validation but no allowed_paths defined. "
                 f"Define allowed_paths list with permitted directory paths."
             )
-        
+
         # Validate that allowed paths are absolute and exist
         for path in allowed_paths:
             if not os.path.isabs(path):
                 raise SecurityConfigError(
                     f"Tool '{tool.name}' allowed_path '{path}' must be absolute path."
                 )
-    
+
     # Check for file path parameters without path validation
-    if hasattr(tool, 'Params'):
+    if hasattr(tool, "Params"):
         param_model = tool.Params
-        if hasattr(param_model, 'model_fields'):
+        if hasattr(param_model, "model_fields"):
             for field_name, _field_info in param_model.model_fields.items():
                 # Check if field name suggests file path handling
-                if any(keyword in field_name.lower() for keyword in ['path', 'file', 'dir', 'folder']):
-                    if not getattr(tool, 'require_path_validation', False):
+                if any(
+                    keyword in field_name.lower() for keyword in ["path", "file", "dir", "folder"]
+                ):
+                    if not getattr(tool, "require_path_validation", False):
                         logger.warning(
                             f"Tool '{tool.name}' has parameter '{field_name}' that may handle file paths "
                             f"but path validation is disabled. Consider setting require_path_validation=True."
@@ -397,5 +403,5 @@ __all__ = [
     "sanitize_error",
     "sanitize_input",
     "validate_path",
-    "validate_tool_security_config"
+    "validate_tool_security_config",
 ]

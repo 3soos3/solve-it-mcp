@@ -124,10 +124,19 @@ select = [
 ignore = [
     "E501",  # line too long (handled by formatter)
     "S101",  # use of assert (common in tests)
+    "S104",  # binding to all interfaces (intentional for servers)
+    "B904",  # exception chaining with 'from' (good practice but not critical)
+    "RUF002",  # ambiguous × character in docstrings
+    "RUF012",  # mutable class attributes (needs refactoring)
+    "SIM102",  # nested if statements (readability preference)
+    "SIM105",  # use contextlib.suppress (style preference)
+    "SIM117",  # nested with statements (readability preference)
+    "UP046",  # generic type parameters (Python 3.12+ feature)
+    "DTZ006",  # datetime without timezone (good practice but not critical)
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "S105", "S106"]
+"tests/**/*.py" = ["S101", "S105", "S106", "S110", "N818", "RUF043"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

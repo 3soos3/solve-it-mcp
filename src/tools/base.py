@@ -178,7 +178,7 @@ class BaseTool(Generic[P], ABC):
         name = "my_tool"                    # Tool identifier
         description = "What this tool does" # Tool description
         Params = MyToolParams              # Parameter model
-        
+
         # Security configuration (Layer 2)
         execution_timeout = 45.0           # Custom timeout
         auto_sanitize_strings = True       # Safe default
@@ -196,13 +196,13 @@ class BaseTool(Generic[P], ABC):
         name = "file_processor"
         description = "Process files safely"
         Params = FileParams
-        
+
         # Layer 2 security configuration
         execution_timeout = 60.0           # File operations may take longer
         allow_long_execution = True        # Explicit acknowledgment
         require_path_validation = True     # Must validate file paths
         allowed_paths = ["/app/data", "/tmp"]  # Whitelist directories
-        
+
         async def invoke(self, params: FileParams) -> str:
             # Path validation is automatically applied
             # String sanitization is automatically applied
@@ -248,13 +248,13 @@ class BaseTool(Generic[P], ABC):
     name: str
     description: str
     params_model: type[P]
-    
+
     # Layer 2 Security Configuration (with safe defaults)
-    execution_timeout: float = 30.0        # Default 30 second timeout
-    allow_long_execution: bool = False     # Must opt-in for longer timeouts
-    auto_sanitize_strings: bool = True     # Sanitize strings by default
+    execution_timeout: float = 30.0  # Default 30 second timeout
+    allow_long_execution: bool = False  # Must opt-in for longer timeouts
+    auto_sanitize_strings: bool = True  # Sanitize strings by default
     require_path_validation: bool = False  # Opt-in for file operations
-    allowed_paths: list[str] = []          # Must define if path validation enabled
+    allowed_paths: list[str] = []  # Must define if path validation enabled
 
     def __init__(self) -> None:
         """Initialize tool and validate class definition.
@@ -270,13 +270,9 @@ class BaseTool(Generic[P], ABC):
         if not hasattr(self, "name") or not isinstance(self.name, str):
             raise ValueError("Tool must define a 'name' class attribute as a string")
         if not hasattr(self, "description") or not isinstance(self.description, str):
-            raise ValueError(
-                "Tool must define a 'description' class attribute as a string"
-            )
+            raise ValueError("Tool must define a 'description' class attribute as a string")
         if not hasattr(self, "Params"):
-            raise ValueError(
-                "Tool must define a 'Params' class attribute (parameter model)"
-            )
+            raise ValueError("Tool must define a 'Params' class attribute (parameter model)")
         self.params_model = self.Params
 
         # Auto-inject standardized logger
@@ -325,47 +321,47 @@ class BaseTool(Generic[P], ABC):
         """
         # Apply Layer 2 security features
         secured_params = self._apply_layer2_security(params)
-        
+
         # Standard Pydantic validation
         return self.params_model(**secured_params)
-    
+
     def _apply_layer2_security(self, params: dict[str, Any]) -> dict[str, Any]:
         """Apply Layer 2 security features to parameters.
-        
+
         Args:
             params: Raw parameter dictionary.
-            
+
         Returns:
             Security-processed parameter dictionary.
-            
+
         Raises:
             ToolError: If security validation fails.
         """
         if not params:
             return params
-        
+
         # Create a copy to avoid modifying the original
         secured_params = params.copy()
-        
+
         # Apply string sanitization if enabled
         if self.auto_sanitize_strings:
             secured_params = self._sanitize_strings_recursive(secured_params)
             self.logger.debug(f"Applied string sanitization for tool: {self.name}")
-        
+
         # Apply path validation if enabled
         if self.require_path_validation:
             self._validate_paths_in_params(secured_params)
             self.logger.debug(f"Applied path validation for tool: {self.name}")
-        
+
         return secured_params
-    
+
     def _sanitize_strings_recursive(self, obj: Any, path: str = "") -> Any:
         """Recursively sanitize strings in nested data structures.
-        
+
         Args:
             obj: Object to sanitize (can be nested dict/list).
             path: Current path in object hierarchy for logging.
-            
+
         Returns:
             Object with sanitized strings.
         """
@@ -375,50 +371,53 @@ class BaseTool(Generic[P], ABC):
             if len(sanitized) != original_length:
                 self.logger.debug(
                     f"Sanitized string at {path}: {original_length} -> {len(sanitized)} chars",
-                    extra={"tool_name": self.name, "path": path}
+                    extra={"tool_name": self.name, "path": path},
                 )
             return sanitized
-        
+
         elif isinstance(obj, dict):
             return {
                 key: self._sanitize_strings_recursive(value, f"{path}.{key}" if path else key)
                 for key, value in obj.items()
             }
-        
+
         elif isinstance(obj, list):
             return [
                 self._sanitize_strings_recursive(item, f"{path}[{i}]" if path else f"[{i}]")
                 for i, item in enumerate(obj)
             ]
-        
+
         else:
             # Return non-string types unchanged
             return obj
-    
+
     def _validate_paths_in_params(self, params: dict[str, Any]) -> None:
         """Validate file paths in parameters against allowed paths.
-        
+
         Args:
             params: Parameter dictionary to validate.
-            
+
         Raises:
             ToolError: If path validation fails.
         """
         from pathlib import Path
-        
+
         # Get parameter model fields to identify path parameters
-        if hasattr(self.params_model, 'model_fields'):
+        if hasattr(self.params_model, "model_fields"):
             for field_name, _field_info in self.params_model.model_fields.items():
                 if field_name in params:
                     value = params[field_name]
-                    
+
                     # Check if field name suggests file path handling
-                    if any(keyword in field_name.lower() for keyword in ['path', 'file', 'dir', 'folder']):
+                    if any(
+                        keyword in field_name.lower()
+                        for keyword in ["path", "file", "dir", "folder"]
+                    ):
                         if isinstance(value, str):
                             try:
                                 # Validate path structure
                                 resolved_path = Path(value).resolve()
-                                
+
                                 # Check against allowed paths
                                 if self.allowed_paths:
                                     path_allowed = False
@@ -429,7 +428,7 @@ class BaseTool(Generic[P], ABC):
                                             break
                                         except ValueError:
                                             continue
-                                    
+
                                     if not path_allowed:
                                         self.logger.warning(
                                             f"Path not in allowed directories: {value}",
@@ -437,20 +436,26 @@ class BaseTool(Generic[P], ABC):
                                                 "tool_name": self.name,
                                                 "field_name": field_name,
                                                 "path": value,
-                                                "allowed_paths": self.allowed_paths
-                                            }
+                                                "allowed_paths": self.allowed_paths,
+                                            },
                                         )
-                                        raise ToolError(f"Path '{value}' is not in allowed directories")
-                                
+                                        raise ToolError(
+                                            f"Path '{value}' is not in allowed directories"
+                                        )
+
                                 self.logger.debug(
                                     f"Path validation passed for {field_name}: {value}",
-                                    extra={"tool_name": self.name, "field_name": field_name}
+                                    extra={"tool_name": self.name, "field_name": field_name},
                                 )
-                                
+
                             except Exception as e:
                                 self.logger.error(
                                     f"Path validation failed for {field_name}: {e}",
-                                    extra={"tool_name": self.name, "field_name": field_name, "path": value}
+                                    extra={
+                                        "tool_name": self.name,
+                                        "field_name": field_name,
+                                        "path": value,
+                                    },
                                 )
                                 raise ToolError(f"Invalid path in {field_name}: {e!s}")
 
