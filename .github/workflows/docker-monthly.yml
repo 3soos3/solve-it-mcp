@@ -72,11 +72,17 @@ jobs:
       - name: Get latest published Docker image version
         id: published
         run: |
-          # Get all tags from Docker Hub
-          echo "Fetching tags from Docker Hub..."
+          # Get all tags from GitHub Container Registry
+          echo "Fetching tags from GitHub Container Registry..."
 
           # Get tags following our version convention: v{SOLVEIT}-{MAJOR}.{MINOR}.{PATCH}
-          DOCKER_TAGS=$(curl -s "https://hub.docker.com/v2/repositories/${{ env.DOCKER_REPO }}/tags/?page_size=100" | jq -r '.results[].name' | grep -E '^v0\.[0-9]{4}-[0-9]{2}-[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          DOCKER_TAGS=$(curl -s \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/users/${{ github.repository_owner }}/packages/container/solve-it-mcp/versions" \
+            | jq -r '.[].metadata.container.tags[]' \
+            | grep -E '^v0\.[0-9]{4}-[0-9]{2}-[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V | tail -1)
 
           if [ -z "$DOCKER_TAGS" ]; then
             echo "::warning::No published versions found following convention v{YEAR.MONTH}-{MAJOR}.{MINOR}.{PATCH}"
