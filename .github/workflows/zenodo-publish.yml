@@ -74,7 +74,7 @@ jobs:
           echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Download SBOM artifacts
-        uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v4.1.2
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v4.1.2
         with:
           name: sbom-${{ steps.meta.outputs.git_commit }}
           path: ./sbom/
