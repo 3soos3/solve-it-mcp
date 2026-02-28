@@ -2,15 +2,14 @@ name: CodeQL - Code Security Analysis
 
 # Static Application Security Testing (SAST) using CodeQL
 # Scans Python code for security vulnerabilities
+# Runs monthly + on main branch pushes to reduce CI time on PRs
 
 on:
   push:
     branches: ["main"]
-  pull_request:
-    branches: ["main"]
   schedule:
-    # Run weekly on Monday at 00:00 UTC
-    - cron: '0 0 * * 1'
+    # Run monthly on the 1st at 00:00 UTC
+    - cron: '0 0 1 * *'
   workflow_dispatch:
 
 permissions:
