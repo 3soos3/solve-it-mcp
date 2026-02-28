@@ -126,7 +126,7 @@ jobs:
 
       - name: Create Pull Request for NOTICE update
         if: steps.notice-changed.outputs.changed == 'true'
-        uses: peter-evans/create-pull-request@c7dacb4a1f1d6c7f8b0d1e93b3e6d8a9c3f5e2d1 # v6.0.0
+        uses: peter-evans/create-pull-request@b1ddad2c994a25fbc81a28b3ec0e368bb2021c50 # v6.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore: Update NOTICE file with dependency licenses"
