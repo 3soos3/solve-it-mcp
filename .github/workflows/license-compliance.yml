@@ -158,7 +158,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    needs: [check-licenses, generate-notice]
+    needs: check-licenses
     if: always()
     steps:
       - name: Summary
@@ -166,15 +166,11 @@ jobs:
           echo "## License Compliance Check Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ needs.check-licenses.result }}" = "success" ]; then
-            echo "- License Scan: ✅ Passed" >> $GITHUB_STEP_SUMMARY
+            echo "✅ License Scan: Passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "All dependency licenses are compatible with MIT." >> $GITHUB_STEP_SUMMARY
           else
-            echo "- License Scan: ❌ Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ "${{ needs.generate-notice.result }}" = "success" ]; then
-            echo "- NOTICE Update: ✅ Updated" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ needs.generate-notice.result }}" = "skipped" ]; then
-            echo "- NOTICE Update: ⏭️ Skipped" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- NOTICE Update: ❌ Failed" >> $GITHUB_STEP_SUMMARY
+            echo "❌ License Scan: Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Incompatible licenses detected. Please review the license report." >> $GITHUB_STEP_SUMMARY
           fi
