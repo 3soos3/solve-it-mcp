@@ -7,10 +7,21 @@ name: CodeQL - Code Security Analysis
 on:
   push:
     branches: ["main"]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/codeql.yml'
+      - 'Dockerfile'
   schedule:
     # Run monthly on the 1st at 00:00 UTC
     - cron: '0 0 1 * *'
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

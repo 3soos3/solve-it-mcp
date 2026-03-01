@@ -30,6 +30,7 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -91,6 +92,7 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -193,6 +195,31 @@ jobs:
         run: |
           # Enable auto-merge once CI passes
           gh pr merge ${{ steps.create-pr.outputs.pull-request-number }} --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Add status comment to PR
+        if: steps.notice-changed.outputs.changed == 'true' && steps.create-pr.outputs.pull-request-operation == 'created'
+        run: |
+          if [ -n "${{ secrets.PAT }}" ] || [ -n "${{ secrets.BOT_TOKEN }}" ]; then
+            # PAT configured - full automation
+            gh pr comment ${{ steps.create-pr.outputs.pull-request-number }} --body \
+              "✅ **Auto-merge enabled**: CI will run automatically. PR will merge after CI passes.
+
+          See \`.github/NOTICE_AUTOMATION_SETUP.md\` for details."
+          else
+            # Using GITHUB_TOKEN - manual trigger needed
+            gh pr comment ${{ steps.create-pr.outputs.pull-request-number }} --body \
+              "⚠️ **CI Trigger Required**: Using GITHUB_TOKEN (security limitation).
+
+          **Trigger CI** (choose one):
+          - Close and reopen this PR
+          - Push empty commit: \\\`git commit --allow-empty -m 'trigger CI' && git push\\\`
+          - Review and merge directly
+
+          **Enable full automation**: See \`.github/NOTICE_AUTOMATION_SETUP.md\`"
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true

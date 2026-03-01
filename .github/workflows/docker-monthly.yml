@@ -10,6 +10,10 @@ on:
   workflow_dispatch:
     # Allow manual trigger for testing
 
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 env:
   DOCKER_REPO: 3soos3/solve-it-mcp
   PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7

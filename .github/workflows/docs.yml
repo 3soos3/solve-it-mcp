@@ -15,6 +15,10 @@ on:
       - 'README.md'
   workflow_dispatch:  # Manual trigger
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write       # For gh-pages deployment
   pull-requests: write  # For PR comments
