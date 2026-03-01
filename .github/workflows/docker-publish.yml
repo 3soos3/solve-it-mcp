@@ -280,7 +280,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ env.DOCKERHUB_REPO }}
-          readme-filepath: ./docs/DOCKER.md
+          readme-filepath: ./docs/deployment/docker.md
         continue-on-error: true
 
       - name: Create build summary

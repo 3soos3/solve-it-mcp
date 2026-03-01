@@ -233,7 +233,7 @@ cosign download attestation <image>
 
 - **Workflows:** `.github/workflows/`
 - **Workflow Backup:** `.github/workflows/backup/`
-- **Branch Protection Docs:** `docs/BRANCH_PROTECTION.md`
+- **Branch Protection Docs:** `docs/development/branch-protection.md`
 
 ## Migration Notes
 

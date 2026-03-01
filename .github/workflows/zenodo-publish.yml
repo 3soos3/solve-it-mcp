@@ -170,8 +170,8 @@ jobs:
           ---
 
           ## 📚 Documentation
-          - [Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/docs/DOCKER.md)
-          - [Kubernetes Deployment](https://github.com/${{ github.repository }}/blob/main/docs/KUBERNETES.md)
+          - [Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/docs/deployment/docker.md)
+          - [Kubernetes Deployment](https://github.com/${{ github.repository }}/blob/main/docs/deployment/kubernetes.md)
           - [Security Policy](https://github.com/${{ github.repository }}/blob/main/SECURITY.md)
 
           ---

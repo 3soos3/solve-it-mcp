@@ -228,7 +228,7 @@ helm install solveit-mcp solveit/solveit-mcp \
 
 ## Resources
 
-- **Full Kubernetes Documentation**: [docs/KUBERNETES.md](../../docs/KUBERNETES.md)
-- **Helm Chart Repository**: https://github.com/3soos3/solveit-charts
-- **Docker Images**: https://hub.docker.com/r/3soos3/solve-it-mcp
-- **Docker Documentation**: [docs/DOCKER.md](../../docs/DOCKER.md)
+- **Full Kubernetes Documentation**: [docs/deployment/kubernetes.md](../../docs/deployment/kubernetes.md)
+- **Architecture & Implementation**: See [docs/architecture/implementation.md](../../docs/architecture/implementation.md) for detailed technical architecture
+- **Branch Protection**: See [docs/development/branch-protection.md](../../docs/development/branch-protection.md) for Git workflow policies
+- **Docker Documentation**: [docs/deployment/docker.md](../../docs/deployment/docker.md)

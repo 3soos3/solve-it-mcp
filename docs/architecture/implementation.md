@@ -155,7 +155,7 @@ v0.2025-10-0.1.0-rc.1   # Release candidate
 | `.github/workflows/docker-publish.yml` | ~400 | Rewritten | Complete workflow redesign |
 | `docs/RELEASES.md` | ~500 | Created | Release process documentation |
 | `.github/PULL_REQUEST_TEMPLATE.md` | ~60 | Created | PR template with scan info |
-| `IMPLEMENTATION_SUMMARY.md` | This file | Created | Summary documentation |
+| `docs/architecture/implementation.md` | This file | Created | Summary documentation |
 
 **Total**: 5 files, ~960 lines added/modified
 
@@ -293,7 +293,7 @@ git push origin v2025.10-0.1.0
    - Scan strategy explanation
    - Version impact section
 
-3. **`MULTIARCH_TESTING.md`** (already exists)
+3. **`docs/development/multiarch-testing.md`** (comprehensive multi-architecture testing guide)
    - Local multi-arch testing guide
    - QEMU setup instructions
    - Platform verification

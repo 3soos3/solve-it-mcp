@@ -1,14 +1,18 @@
-.PHONY: help install install-dev lint format test test-cov clean build run docker-build docker-run pre-commit
+.PHONY: help install install-dev lint format test test-cov clean build run docker-build docker-run pre-commit requirements requirements-upgrade docs-serve docs-build
 
 # Default target
 help:
 	@echo "Available commands:"
 	@echo "  make install        - Install production dependencies"
 	@echo "  make install-dev    - Install development dependencies"
+	@echo "  make requirements   - Generate requirements.txt from pyproject.toml"
+	@echo "  make requirements-upgrade - Upgrade all dependencies"
 	@echo "  make lint           - Run all linters"
 	@echo "  make format         - Format code with ruff and black"
 	@echo "  make test           - Run tests"
 	@echo "  make test-cov       - Run tests with coverage report"
+	@echo "  make docs-serve     - Serve documentation locally"
+	@echo "  make docs-build     - Build documentation"
 	@echo "  make clean          - Clean build artifacts"
 	@echo "  make build          - Build Docker image"
 	@echo "  make run            - Run server locally"
@@ -23,6 +27,20 @@ install:
 install-dev:
 	pip install -r requirements.txt
 	pip install pre-commit
+
+# Requirements management
+requirements:
+	pip-compile pyproject.toml -o requirements.txt --no-emit-index-url
+
+requirements-upgrade:
+	pip-compile --upgrade pyproject.toml -o requirements.txt --no-emit-index-url
+
+# Documentation
+docs-serve:
+	mkdocs serve
+
+docs-build:
+	mkdocs build --strict
 
 # Code quality
 lint:
