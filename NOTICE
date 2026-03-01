@@ -1,6 +1,30 @@
 THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
 ======================================================================
 
+ORIGINAL AUTHOR ATTRIBUTION
+======================================================================
+
+This project is a fork of the original solve_it_mcp repository.
+
+Original Repository: https://github.com/CKE-Proto/solve_it_mcp
+Original Author: CKE-Proto (L3K-A)
+Original License: MIT License
+Original Copyright: Copyright (c) 2025 L3K-A
+
+This fork includes significant enhancements and modifications:
+- Production CI/CD pipelines
+- Multi-architecture Docker support
+- Security scanning and compliance features
+- Dual registry publishing
+- SBOM generation and image signing
+
+All modifications maintain the original MIT License.
+
+======================================================================
+
+THIRD-PARTY DEPENDENCIES
+======================================================================
+
 This project incorporates components from third-party projects.
 Original copyright notices and licenses are reproduced below.
 
