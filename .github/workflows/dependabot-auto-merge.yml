@@ -18,7 +18,11 @@ jobs:
   auto-merge:
     name: Auto-Merge Safe Dependencies
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]' || github.event_name == 'workflow_dispatch'
+    if: |
+      github.actor == 'dependabot[bot]' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.ref == 'automated/update-notice' &&
+       contains(github.event.pull_request.labels.*.name, 'automated'))
 
     steps:
       - name: Get PR number
@@ -30,8 +34,20 @@ jobs:
             echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check PR type
+        id: pr_type
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            echo "type=dependabot" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.pull_request.head.ref }}" = "automated/update-notice" ]; then
+            echo "type=notice" >> $GITHUB_OUTPUT
+          else
+            echo "type=manual" >> $GITHUB_OUTPUT
+          fi
+
       - name: Fetch Dependabot Metadata
         id: metadata
+        if: steps.pr_type.outputs.type == 'dependabot'
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
@@ -54,11 +70,23 @@ jobs:
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
           ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
           DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          PR_TYPE: ${{ steps.pr_type.outputs.type }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SAFE_TO_MERGE=false
           REASON=""
 
+          # Handle NOTICE file updates (always safe)
+          if [ "$PR_TYPE" = "notice" ]; then
+            SAFE_TO_MERGE=true
+            REASON="Automated NOTICE file update - safe to auto-merge after CI"
+            echo "safe=$SAFE_TO_MERGE" >> $GITHUB_OUTPUT
+            echo "reason=$REASON" >> $GITHUB_OUTPUT
+            echo "Decision: SAFE=$SAFE_TO_MERGE REASON=$REASON (NOTICE PR)"
+            exit 0
+          fi
+
+          # Handle Dependabot PRs
           echo "Safety Analysis: UPDATE_TYPE=$UPDATE_TYPE ECOSYSTEM=$ECOSYSTEM"
 
           # Check if PR has security label (Dependabot adds this for security updates)
@@ -106,42 +134,84 @@ jobs:
           steps.safety_check.outputs.safe == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_TYPE: ${{ steps.pr_type.outputs.type }}
         run: |
           echo "Waiting for required checks..."
-          REQUIRED_CHECKS=("Code Quality" "Unit Tests (3.11)" "Unit Tests (3.12)" "CI Summary" "Security Summary" "PR Validation Summary")
-          TIMEOUT=1200
-          ELAPSED=0
-          INTERVAL=30
 
-          while [ $ELAPSED -lt $TIMEOUT ]; do
-            CHECKS=$(gh pr checks ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --json name,state 2>/dev/null || echo "[]")
-            ALL_PASSED=true
+          # NOTICE PRs have minimal checks (no CI if path filters work)
+          if [ "$PR_TYPE" = "notice" ]; then
+            echo "NOTICE PR - waiting for all checks (if any trigger)"
+            # Wait a bit for checks to start
+            sleep 10
 
-            for check in "${REQUIRED_CHECKS[@]}"; do
-              STATUS=$(echo "$CHECKS" | jq -r ".[] | select(.name == \"$check\") | .state")
-              if [ "$STATUS" = "pass" ]; then
-                echo "✅ $check"
-              elif [ "$STATUS" = "fail" ]; then
-                echo "❌ $check FAILED"
+            # Get all running checks and wait for them
+            TIMEOUT=600
+            ELAPSED=0
+            INTERVAL=20
+
+            while [ $ELAPSED -lt $TIMEOUT ]; do
+              CHECKS=$(gh pr checks ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --json name,state 2>/dev/null || echo "[]")
+
+              # Check if any checks are pending
+              PENDING=$(echo "$CHECKS" | jq -r '.[] | select(.state == "pending" or .state == "queued") | .name')
+              FAILED=$(echo "$CHECKS" | jq -r '.[] | select(.state == "fail" or .state == "failure") | .name')
+
+              if [ -n "$FAILED" ]; then
+                echo "❌ Checks failed: $FAILED"
                 exit 1
-              else
-                echo "⏳ $check pending (status: $STATUS)"
-                ALL_PASSED=false
               fi
+
+              if [ -z "$PENDING" ]; then
+                echo "✅ All checks passed or skipped!"
+                break
+              fi
+
+              echo "⏳ Waiting for: $PENDING"
+              sleep $INTERVAL
+              ELAPSED=$((ELAPSED + INTERVAL))
             done
 
-            if [ "$ALL_PASSED" = true ]; then
-              echo "All checks passed!"
-              break
+            if [ $ELAPSED -ge $TIMEOUT ]; then
+              echo "Timeout waiting for checks"
+              exit 1
             fi
+          else
+            # Dependabot PRs need specific checks
+            REQUIRED_CHECKS=("Code Quality" "Unit Tests (3.11)" "Unit Tests (3.12)" "CI Summary" "Security Summary" "PR Validation Summary")
+            TIMEOUT=1200
+            ELAPSED=0
+            INTERVAL=30
 
-            sleep $INTERVAL
-            ELAPSED=$((ELAPSED + INTERVAL))
-          done
+            while [ $ELAPSED -lt $TIMEOUT ]; do
+              CHECKS=$(gh pr checks ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --json name,state 2>/dev/null || echo "[]")
+              ALL_PASSED=true
 
-          if [ $ELAPSED -ge $TIMEOUT ]; then
-            echo "Timeout waiting for checks"
-            exit 1
+              for check in "${REQUIRED_CHECKS[@]}"; do
+                STATUS=$(echo "$CHECKS" | jq -r ".[] | select(.name == \"$check\") | .state")
+                if [ "$STATUS" = "pass" ]; then
+                  echo "✅ $check"
+                elif [ "$STATUS" = "fail" ]; then
+                  echo "❌ $check FAILED"
+                  exit 1
+                else
+                  echo "⏳ $check pending (status: $STATUS)"
+                  ALL_PASSED=false
+                fi
+              done
+
+              if [ "$ALL_PASSED" = true ]; then
+                echo "All checks passed!"
+                break
+              fi
+
+              sleep $INTERVAL
+              ELAPSED=$((ELAPSED + INTERVAL))
+            done
+
+            if [ $ELAPSED -ge $TIMEOUT ]; then
+              echo "Timeout waiting for checks"
+              exit 1
+            fi
           fi
 
       - name: Approve and enable auto-merge
@@ -170,8 +240,9 @@ jobs:
       - name: Summary
         if: always()
         run: |
-          echo "### Dependabot Auto-Merge Summary" >> $GITHUB_STEP_SUMMARY
+          echo "### Auto-Merge Summary" >> $GITHUB_STEP_SUMMARY
           echo "PR: #${{ steps.pr.outputs.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "Type: ${{ steps.pr_type.outputs.type }}" >> $GITHUB_STEP_SUMMARY
           echo "Hold: ${{ steps.check_hold.outputs.hold }}" >> $GITHUB_STEP_SUMMARY
           echo "Safe: ${{ steps.safety_check.outputs.safe }}" >> $GITHUB_STEP_SUMMARY
           echo "Reason: ${{ steps.safety_check.outputs.reason }}" >> $GITHUB_STEP_SUMMARY
