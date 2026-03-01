@@ -209,7 +209,7 @@ jobs:
           DEP_SEC="${{ needs.dependency-security.result }}"
           DOCKER_SEC="${{ needs.dockerfile-security.result }}"
           SECRET="${{ needs.secret-scan.result }}"
-          
+
           # Warn if any job failed (but not if skipped)
           if [[ "$CODE_SEC" == "failure" ]] || \
              [[ "$DEP_SEC" == "failure" ]] || \
@@ -217,7 +217,7 @@ jobs:
              [[ "$SECRET" == "failure" ]]; then
             echo "::warning::One or more security checks raised concerns"
           fi
-          
+
           echo "Code Security: $CODE_SEC"
           echo "Dependency Security: $DEP_SEC"
           echo "Dockerfile Security: $DOCKER_SEC"
@@ -231,7 +231,7 @@ jobs:
           echo "### Security Job Status" >> $GITHUB_STEP_SUMMARY
           echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          
+
           # Code Security
           if [[ "${{ needs.code-security.result }}" == "success" ]]; then
             echo "| Code Security (Bandit) | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
@@ -240,7 +240,7 @@ jobs:
           else
             echo "| Code Security (Bandit) | ⚠️ Issues Found |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Dependency Security
           if [[ "${{ needs.dependency-security.result }}" == "success" ]]; then
             echo "| Dependency Security | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
@@ -249,7 +249,7 @@ jobs:
           else
             echo "| Dependency Security | ⚠️ Vulnerabilities Found |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Dockerfile Security
           if [[ "${{ needs.dockerfile-security.result }}" == "success" ]]; then
             echo "| Dockerfile Security (Hadolint) | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
@@ -258,7 +258,7 @@ jobs:
           else
             echo "| Dockerfile Security (Hadolint) | ⚠️ Issues Found |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Secret Scanning
           if [[ "${{ needs.secret-scan.result }}" == "success" ]]; then
             echo "| Secret Scanning | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
@@ -267,15 +267,15 @@ jobs:
           else
             echo "| Secret Scanning | ⚠️ Check Required |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           # Add note if jobs were skipped
           if [[ "${{ needs.changes.outputs.security }}" != "true" ]]; then
             echo "ℹ️ _Security jobs skipped - no relevant file changes detected_" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "*Security scanning for vulnerabilities and best practices.*" >> $GITHUB_STEP_SUMMARY
           echo "*Review artifacts for detailed reports.*" >> $GITHUB_STEP_SUMMARY

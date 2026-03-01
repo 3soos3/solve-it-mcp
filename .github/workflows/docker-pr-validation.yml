@@ -227,7 +227,7 @@ jobs:
         run: |
           BUILD="${{ needs.build-and-test.result }}"
           SECURITY="${{ needs.security-scan.result }}"
-          
+
           # Only fail if jobs failed (not if skipped)
           if [[ "$BUILD" == "failure" ]]; then
             echo "::error::Docker build or health checks failed"
@@ -237,7 +237,7 @@ jobs:
           if [[ "$SECURITY" == "failure" ]]; then
             echo "::warning::Security scan raised concerns - review before merging"
           fi
-          
+
           echo "Build & Test: $BUILD"
           echo "Security Scan: $SECURITY"
 
@@ -249,7 +249,7 @@ jobs:
           echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          
+
           # Build status
           if [[ "${{ needs.build-and-test.result }}" == "success" ]]; then
             echo "| Docker Build (AMD64) | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
@@ -261,7 +261,7 @@ jobs:
             echo "| Docker Build (AMD64) | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
             echo "| Health Checks | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Security scan status
           if [[ "${{ needs.security-scan.result }}" == "success" ]]; then
             echo "| Security Scan (Trivy) | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
@@ -270,15 +270,15 @@ jobs:
           else
             echo "| Security Scan (Trivy) | ⚠️ Review Required |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           # Add note if jobs were skipped
           if [[ "${{ needs.changes.outputs.docker }}" != "true" ]]; then
             echo "ℹ️ _Docker validation skipped - no relevant file changes detected_" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "*This workflow validates Docker builds without publishing.*" >> $GITHUB_STEP_SUMMARY
           echo "*Images will be built and published when merged to main.*" >> $GITHUB_STEP_SUMMARY

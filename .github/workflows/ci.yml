@@ -248,7 +248,7 @@ jobs:
           CODE_QUALITY="${{ needs.code-quality.result }}"
           TESTS="${{ needs.tests.result }}"
           YAML_LINT="${{ needs.yaml-lint.result }}"
-          
+
           # Fail if any job failed (but not if skipped)
           if [[ "$CODE_QUALITY" == "failure" ]] || \
              [[ "$TESTS" == "failure" ]] || \
@@ -256,7 +256,7 @@ jobs:
             echo "::error::One or more critical CI jobs failed"
             exit 1
           fi
-          
+
           # Treat success or skipped as passing
           echo "Code Quality: $CODE_QUALITY"
           echo "Tests: $TESTS"
@@ -321,7 +321,7 @@ jobs:
           else
             echo "| HTTP Integration Tests | ⚠️ Issues |" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           # Add note if jobs were skipped
           if [[ "${{ needs.changes.outputs.code }}" != "true" ]]; then
             echo "" >> $GITHUB_STEP_SUMMARY

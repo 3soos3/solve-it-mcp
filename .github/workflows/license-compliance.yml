@@ -281,7 +281,7 @@ jobs:
         run: |
           echo "## License Compliance Check Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [ "${{ needs.check-licenses.result }}" = "success" ]; then
             echo "✅ License Scan: Passed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
