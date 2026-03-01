@@ -5,19 +5,37 @@ name: Dependency Update Validation
 
 on:
   pull_request:
-    paths:
-      - 'pyproject.toml'
-      - 'requirements.txt'
-      - 'requirements-dev.txt'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      dependencies: ${{ steps.filter.outputs.dependencies }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            dependencies:
+              - 'pyproject.toml'
+              - 'requirements.txt'
+              - 'requirements-dev.txt'
+              - '.github/workflows/dependency-test.yml'
+
   test-dependencies:
     name: Test with Updated Dependencies
     runs-on: ${{ matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.dependencies == 'true'
     permissions:
       contents: read
     strategy:
