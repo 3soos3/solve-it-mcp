@@ -141,8 +141,7 @@ jobs:
             DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:latest"
             GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:latest"
 
-            # SHA tag (for forensic reproducibility)
-            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:sha-${GIT_COMMIT}"
+            # SHA tag (for forensic reproducibility - GHCR only, not Docker Hub)
             GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:sha-${GIT_COMMIT}"
           fi
 
@@ -155,6 +154,30 @@ jobs:
               DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:${{ github.event.inputs.tag }}"
               GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:${{ github.event.inputs.tag }}"
             fi
+          fi
+
+          # Add release tag if provided (workflow_call from monthly rebuild)
+          if [[ -n "${{ inputs.release_tag }}" ]]; then
+            # Extract version from release_tag (e.g., v0.2025-10-0.1.2 → 0.2025-10-0.1.2)
+            RELEASE_VERSION="${{ inputs.release_tag }}"
+            RELEASE_VERSION="${RELEASE_VERSION#v}"  # Remove 'v' prefix if present
+
+            if [[ -z "$DOCKERHUB_TAGS" ]]; then
+              # First tag - use release_tag
+              DOCKERHUB_TAGS="${{ env.DOCKERHUB_REPO }}:${{ inputs.release_tag }}"
+              GHCR_TAGS="${{ env.GHCR_REPO }}:${{ inputs.release_tag }}"
+            else
+              # Append release_tag
+              DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:${{ inputs.release_tag }}"
+              GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:${{ inputs.release_tag }}"
+            fi
+
+            # Add latest tag for monthly releases
+            DOCKERHUB_TAGS="${DOCKERHUB_TAGS},${{ env.DOCKERHUB_REPO }}:latest"
+            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:latest"
+
+            # Add SHA tag for forensic reproducibility (GHCR only, not Docker Hub)
+            GHCR_TAGS="${GHCR_TAGS},${{ env.GHCR_REPO }}:sha-${GIT_COMMIT}"
           fi
 
           # Combine all tags for build step
@@ -558,6 +581,7 @@ jobs:
       - name: Trigger Zenodo Publish Workflow
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7
         with:
+          github-token: ${{ secrets.WORKFLOW_PAT }}
           script: |
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,

@@ -114,18 +114,18 @@ jobs:
           INTERVAL=30
 
           while [ $ELAPSED -lt $TIMEOUT ]; do
-            CHECKS=$(gh pr checks ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --json name,conclusion 2>/dev/null || echo "[]")
+            CHECKS=$(gh pr checks ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --json name,state 2>/dev/null || echo "[]")
             ALL_PASSED=true
 
             for check in "${REQUIRED_CHECKS[@]}"; do
-              STATUS=$(echo "$CHECKS" | jq -r ".[] | select(.name == \"$check\") | .conclusion")
-              if [ "$STATUS" = "SUCCESS" ] || [ "$STATUS" = "success" ]; then
+              STATUS=$(echo "$CHECKS" | jq -r ".[] | select(.name == \"$check\") | .state")
+              if [ "$STATUS" = "pass" ]; then
                 echo "✅ $check"
-              elif [ "$STATUS" = "FAILURE" ] || [ "$STATUS" = "failure" ]; then
+              elif [ "$STATUS" = "fail" ]; then
                 echo "❌ $check FAILED"
                 exit 1
               else
-                echo "⏳ $check pending"
+                echo "⏳ $check pending (status: $STATUS)"
                 ALL_PASSED=false
               fi
             done
