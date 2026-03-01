@@ -270,3 +270,4 @@ NOTES.md
 .gcp/
 credentials
 config
+.archive/
