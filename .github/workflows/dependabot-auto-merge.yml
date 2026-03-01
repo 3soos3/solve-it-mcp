@@ -54,15 +54,25 @@ jobs:
           UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
           ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
           DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SAFE_TO_MERGE=false
           REASON=""
 
           echo "Safety Analysis: UPDATE_TYPE=$UPDATE_TYPE ECOSYSTEM=$ECOSYSTEM"
 
-          if [[ "$UPDATE_TYPE" == *"security"* ]]; then
+          # Check if PR has security label (Dependabot adds this for security updates)
+          LABELS=$(gh pr view ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --json labels --jq '.labels[].name')
+          IS_SECURITY=false
+          if echo "$LABELS" | grep -q "security"; then
+            IS_SECURITY=true
+          fi
+
+          # Rule 1: Security updates (any ecosystem) -> AUTO-MERGE
+          if [ "$IS_SECURITY" = true ]; then
             SAFE_TO_MERGE=true
             REASON="Security update - auto-merge after CI"
+          # Rule 2: GitHub Actions patch/minor -> AUTO-MERGE
           elif [[ "$ECOSYSTEM" == "github_actions" ]] && \
                [[ "$UPDATE_TYPE" == "version-update:semver-patch" || \
                   "$UPDATE_TYPE" == "version-update:semver-minor" ]]; then
@@ -73,9 +83,11 @@ jobs:
               SAFE_TO_MERGE=true
               REASON="GitHub Actions safe update"
             fi
+          # Rule 3: Python/Docker -> MANUAL REVIEW
           elif [[ "$ECOSYSTEM" == "pip" || "$ECOSYSTEM" == "docker" ]]; then
             SAFE_TO_MERGE=false
             REASON="Forensic policy requires manual review"
+          # Rule 4: Major updates -> MANUAL REVIEW
           elif [[ "$UPDATE_TYPE" == "version-update:semver-major" ]]; then
             SAFE_TO_MERGE=false
             REASON="Major update requires manual review"
@@ -86,7 +98,7 @@ jobs:
 
           echo "safe=$SAFE_TO_MERGE" >> $GITHUB_OUTPUT
           echo "reason=$REASON" >> $GITHUB_OUTPUT
-          echo "Decision: SAFE=$SAFE_TO_MERGE REASON=$REASON"
+          echo "Decision: SAFE=$SAFE_TO_MERGE REASON=$REASON IS_SECURITY=$IS_SECURITY"
 
       - name: Wait for required checks
         if: |
