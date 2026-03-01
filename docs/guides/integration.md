@@ -23,7 +23,7 @@ from config import load_config
 from utils.telemetry import TelemetryManager
 from utils.metrics import MCPMetrics
 from utils.correlation import CorrelationContext
-from transports import run_stdio_server, HTTPTransportManager, HTTP_AVAILABLE
+from transports import run_stdio_server, run_http_server, HTTP_AVAILABLE
 
 # Conditional OpenTelemetry imports
 try:
@@ -320,8 +320,8 @@ Replace the last section before `if __name__ == "__main__"` with:
             raise RuntimeError("HTTP transport dependencies missing")
         
         logger.info("Starting HTTP/SSE transport")
-        http_manager = HTTPTransportManager(server, config.http)
-        await http_manager.run()
+        # Using official MCP SDK StreamableHTTPSessionManager
+        await run_http_server(server, config.http)
     else:
         logger.info("Starting STDIO transport")
         await run_stdio_server(server)

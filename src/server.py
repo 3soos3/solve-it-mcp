@@ -15,7 +15,7 @@ Features:
 
 import argparse
 import asyncio
-from contextlib import nullcontext
+from contextlib import asynccontextmanager, contextmanager
 import sys
 import time
 from typing import Any
@@ -28,7 +28,8 @@ import mcp.types as types
 from config import load_config
 
 # Transport modules
-from transports import HTTP_AVAILABLE, HTTPTransportManager, run_stdio_server
+from transports import HTTP_AVAILABLE, run_stdio_server
+from transports.http_transport_sdk import run_http_server
 from utils.correlation import CorrelationContext
 from utils.metrics import MCPMetrics
 from utils.telemetry import TelemetryManager
@@ -75,13 +76,16 @@ from utils.security_middleware import SecurityError, SecurityMiddleware
 from utils.shared_security import SharedSecurityConfig
 
 
-def _noop_context():
-    """No-op context manager for when OpenTelemetry is disabled.
+@contextmanager
+def _noop_context_sync():
+    """No-op synchronous context manager."""
+    yield
 
-    Returns:
-        A context manager that does nothing (nullcontext)
-    """
-    return nullcontext()
+
+@asynccontextmanager
+async def _noop_context():
+    """No-op async context manager for when OpenTelemetry is disabled."""
+    yield
 
 
 def create_server() -> Server:
@@ -306,7 +310,7 @@ async def main() -> None:
     ) -> list[types.TextContent]:
         """Handle tool calls with comprehensive logging and performance tracking."""
         # Generate correlation ID and set context
-        correlation_id = CorrelationContext.generate_correlation_id()
+        correlation_id = CorrelationContext.generate_id("tool")
         CorrelationContext.set_correlation_id(correlation_id)
 
         start_time = time.time()
@@ -314,20 +318,6 @@ async def main() -> None:
         # Track active requests
         if metrics:
             metrics.record_active_request(1)
-
-        # Start OpenTelemetry span if available
-        tracer = trace.get_tracer(__name__) if OTEL_AVAILABLE else None
-        span_context = (
-            tracer.start_as_current_span(
-                f"mcp.tool.{name}",
-                attributes={
-                    "mcp.tool.name": name,
-                    "mcp.correlation_id": correlation_id,
-                },
-            )
-            if tracer
-            else _noop_context()
-        )
 
         # Log request details (sanitized)
         arg_count = len(arguments) if arguments else 0
@@ -339,6 +329,12 @@ async def main() -> None:
                 "arg_count": arg_count,
             },
         )
+
+        # Start OpenTelemetry span if available
+        # Note: Disabled for async context - OTEL spans don't work well with async/await
+        # TODO: Use proper async OTEL instrumentation
+        tracer = None  # trace.get_tracer(__name__) if OTEL_AVAILABLE else None
+        span_context = _noop_context()
 
         try:
             async with span_context:
@@ -498,9 +494,6 @@ async def main() -> None:
 
             # Re-raise the exception (SDK will handle the MCP error response)
             raise
-        finally:
-            # Clear correlation context
-            CorrelationContext.clear_correlation_id()
 
     # Server startup completed successfully
     logger.info("Server initialization completed successfully")
@@ -514,8 +507,8 @@ async def main() -> None:
                 raise RuntimeError("HTTP transport not available. Install starlette and uvicorn.")
 
             logger.info(f"Starting HTTP/SSE transport on {config.http.host}:{config.http.port}")
-            http_manager = HTTPTransportManager(server, config.http)
-            await http_manager.run()
+            # Use official SDK StreamableHTTPSessionManager
+            await run_http_server(server, config.http)
         else:
             logger.info("Starting STDIO transport")
             await run_stdio_server(server)

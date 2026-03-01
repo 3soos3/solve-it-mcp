@@ -30,6 +30,10 @@ on:
       DOCKERHUB_TOKEN:
         required: true
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   DOCKERHUB_REPO: 3soos3/solve-it-mcp
   GHCR_REPO: ghcr.io/${{ github.repository_owner }}/solve-it-mcp
