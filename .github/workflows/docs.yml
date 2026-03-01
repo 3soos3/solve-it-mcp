@@ -16,7 +16,8 @@ on:
   workflow_dispatch:  # Manual trigger
 
 permissions:
-  contents: write  # For gh-pages deployment
+  contents: write       # For gh-pages deployment
+  pull-requests: write  # For PR comments
 
 jobs:
   build-and-deploy:
