@@ -2,10 +2,6 @@ name: License Compliance Check
 
 on:
   pull_request:
-    paths:
-      - 'requirements.txt'
-      - 'pyproject.toml'
-      - '.github/workflows/license-compliance.yml'
   push:
     branches: [main]
   schedule:
@@ -17,9 +13,34 @@ env:
   PYTHON_VERSION: "3.12"
 
 jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      dependencies: ${{ steps.filter.outputs.dependencies }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            dependencies:
+              - 'requirements.txt'
+              - 'pyproject.toml'
+              - '.github/workflows/license-compliance.yml'
+
   check-licenses:
     name: Check Dependency Licenses
     runs-on: ubuntu-latest
+    needs: changes
+    if: |
+      needs.changes.outputs.dependencies == 'true' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
     permissions:
       contents: read
     steps:
@@ -253,17 +274,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    needs: check-licenses
+    needs: [changes, check-licenses]
     if: always()
     steps:
       - name: Summary
         run: |
           echo "## License Compliance Check Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+
           if [ "${{ needs.check-licenses.result }}" = "success" ]; then
             echo "✅ License Scan: Passed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "All dependency licenses are compatible with MIT." >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.check-licenses.result }}" = "skipped" ]; then
+            echo "⏭️ License Scan: Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "No dependency changes detected - scan skipped." >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ License Scan: Failed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY

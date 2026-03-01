@@ -9,12 +9,6 @@ on:
     branches:
       - main
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'Dockerfile'
-      - 'requirements.txt'
-      - 'src/**'
-      - '.github/workflows/docker-pr-validation.yml'
-      - '.dockerignore'
   workflow_dispatch:
 
 concurrency:
@@ -25,10 +19,34 @@ env:
   DOCKER_REPO: 3soos3/solve-it-mcp
 
 jobs:
+  # Job 0: Detect changed files
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      docker: ${{ steps.filter.outputs.docker }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            docker:
+              - 'Dockerfile'
+              - 'requirements.txt'
+              - 'src/**'
+              - '.github/workflows/docker-pr-validation.yml'
+              - '.dockerignore'
+
   # Job 1: Single-arch Build & Test
   build-and-test:
     name: Build & Test (AMD64)
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.docker == 'true'
     permissions:
       contents: read
       packages: read
@@ -202,19 +220,26 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    needs: [build-and-test, security-scan]
+    needs: [changes, build-and-test, security-scan]
     if: always()
     steps:
       - name: Check validation status
         run: |
-          if [[ "${{ needs.build-and-test.result }}" != "success" ]]; then
+          BUILD="${{ needs.build-and-test.result }}"
+          SECURITY="${{ needs.security-scan.result }}"
+
+          # Only fail if jobs failed (not if skipped)
+          if [[ "$BUILD" == "failure" ]]; then
             echo "::error::Docker build or health checks failed"
             exit 1
           fi
 
-          if [[ "${{ needs.security-scan.result }}" != "success" ]]; then
+          if [[ "$SECURITY" == "failure" ]]; then
             echo "::warning::Security scan raised concerns - review before merging"
           fi
+
+          echo "Build & Test: $BUILD"
+          echo "Security Scan: $SECURITY"
 
       - name: Create PR summary
         if: always()
@@ -224,10 +249,36 @@ jobs:
           echo "### Validation Results" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Docker Build (AMD64) | ${{ needs.build-and-test.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Health Checks | ${{ needs.build-and-test.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Security Scan (Trivy) | ${{ needs.security-scan.result == 'success' && '✅ Passed' || '⚠️ Review Required' }} |" >> $GITHUB_STEP_SUMMARY
+
+          # Build status
+          if [[ "${{ needs.build-and-test.result }}" == "success" ]]; then
+            echo "| Docker Build (AMD64) | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Health Checks | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.build-and-test.result }}" == "skipped" ]]; then
+            echo "| Docker Build (AMD64) | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
+            echo "| Health Checks | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Docker Build (AMD64) | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+            echo "| Health Checks | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Security scan status
+          if [[ "${{ needs.security-scan.result }}" == "success" ]]; then
+            echo "| Security Scan (Trivy) | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.security-scan.result }}" == "skipped" ]]; then
+            echo "| Security Scan (Trivy) | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Security Scan (Trivy) | ⚠️ Review Required |" >> $GITHUB_STEP_SUMMARY
+          fi
+
           echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Add note if jobs were skipped
+          if [[ "${{ needs.changes.outputs.docker }}" != "true" ]]; then
+            echo "ℹ️ _Docker validation skipped - no relevant file changes detected_" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "*This workflow validates Docker builds without publishing.*" >> $GITHUB_STEP_SUMMARY
           echo "*Images will be built and published when merged to main.*" >> $GITHUB_STEP_SUMMARY
