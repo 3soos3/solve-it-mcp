@@ -19,9 +19,9 @@ jobs:
     name: Auto-Merge Safe Dependencies
     runs-on: ubuntu-latest
     if: |
-      github.actor == 'dependabot[bot]' || 
+      github.actor == 'dependabot[bot]' ||
       github.event_name == 'workflow_dispatch' ||
-      (github.event.pull_request.head.ref == 'automated/update-notice' && 
+      (github.event.pull_request.head.ref == 'automated/update-notice' &&
        contains(github.event.pull_request.labels.*.name, 'automated'))
 
     steps:
@@ -137,40 +137,40 @@ jobs:
           PR_TYPE: ${{ steps.pr_type.outputs.type }}
         run: |
           echo "Waiting for required checks..."
-          
+
           # NOTICE PRs have minimal checks (no CI if path filters work)
           if [ "$PR_TYPE" = "notice" ]; then
             echo "NOTICE PR - waiting for all checks (if any trigger)"
             # Wait a bit for checks to start
             sleep 10
-            
+
             # Get all running checks and wait for them
             TIMEOUT=600
             ELAPSED=0
             INTERVAL=20
-            
+
             while [ $ELAPSED -lt $TIMEOUT ]; do
               CHECKS=$(gh pr checks ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --json name,state 2>/dev/null || echo "[]")
-              
+
               # Check if any checks are pending
               PENDING=$(echo "$CHECKS" | jq -r '.[] | select(.state == "pending" or .state == "queued") | .name')
               FAILED=$(echo "$CHECKS" | jq -r '.[] | select(.state == "fail" or .state == "failure") | .name')
-              
+
               if [ -n "$FAILED" ]; then
                 echo "❌ Checks failed: $FAILED"
                 exit 1
               fi
-              
+
               if [ -z "$PENDING" ]; then
                 echo "✅ All checks passed or skipped!"
                 break
               fi
-              
+
               echo "⏳ Waiting for: $PENDING"
               sleep $INTERVAL
               ELAPSED=$((ELAPSED + INTERVAL))
             done
-            
+
             if [ $ELAPSED -ge $TIMEOUT ]; then
               echo "Timeout waiting for checks"
               exit 1
