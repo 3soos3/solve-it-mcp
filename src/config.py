@@ -172,6 +172,16 @@ class HTTPConfig(BaseModel):
         default="/metrics", description="Metrics endpoint path (reserved for future use)"
     )
 
+    # MCP Protocol settings
+    protocol_version: str = Field(default="2025-11-25", description="MCP protocol version to use")
+    sse_event_id_enabled: bool = Field(
+        default=True, description="Enable event IDs in SSE streams for resumability"
+    )
+    correlation_id_header: str = Field(
+        default="X-Request-ID", description="Header name for request correlation ID"
+    )
+    max_sse_streams: int = Field(default=100, description="Maximum concurrent SSE streams allowed")
+
 
 class OpenTelemetryConfig(BaseModel):
     """OpenTelemetry configuration with environment-based sampling.
