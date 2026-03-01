@@ -62,7 +62,7 @@ jobs:
 
       - name: Upload coverage reports
         if: always()
-        uses: actions/upload-artifact@65c4c4a1ddea9b8f61cf8f4806ff5a2e129be7d4 # v4.3.1
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4.3.1
         with:
           name: coverage-report-py${{ inputs.python-version }}
           path: htmlcov/
@@ -70,7 +70,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@65c4c4a1ddea9b8f61cf8f4806ff5a2e129be7d4 # v4.3.1
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v4.3.1
         with:
           name: pytest-results-py${{ inputs.python-version }}
           path: pytest-results.xml
