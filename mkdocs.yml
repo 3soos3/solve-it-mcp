@@ -1,0 +1,98 @@
+site_name: SOLVE-IT MCP Server
+site_description: Production-ready MCP server for digital forensics knowledge base access
+site_author: 3soos3
+site_url: https://3soos3.github.io/solve-it-mcp/
+
+repo_name: 3soos3/solve-it-mcp
+repo_url: https://github.com/3soos3/solve-it-mcp
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    # Light mode
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode (for late-night investigations!)
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  
+  features:
+    - navigation.instant      # Fast page loads
+    - navigation.tracking     # URL updates with scroll
+    - navigation.tabs         # Top-level tabs
+    - navigation.sections     # Expandable sections
+    - navigation.indexes      # Index pages for sections
+    - navigation.top          # Back to top button
+    - search.suggest          # Search suggestions
+    - search.highlight        # Highlight search terms
+    - search.share            # Share search results
+    - content.code.copy       # Copy code blocks
+    - content.code.annotate   # Annotations in code
+    
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search:
+      lang: en
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details
+  - admonition
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Guides:
+    - For Forensic Analysts: guides/for-forensic-analysts.md
+    - For Researchers: guides/for-researchers.md
+    - Integration: guides/integration.md
+    - Troubleshooting: guides/troubleshooting.md
+  - Deployment:
+    - Docker: deployment/docker.md
+    - Kubernetes: deployment/kubernetes.md
+  - Architecture:
+    - Implementation Details: architecture/implementation.md
+  - Development:
+    - Local Testing: development/local-testing.md
+    - Testing Guide: development/testing-guide.md
+    - Multi-arch Testing: development/multiarch-testing.md
+    - Releases: development/releases.md
+    - Branch Protection: development/branch-protection.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/3soos3/solve-it-mcp
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/3soos3/solve-it-mcp
+
+copyright: Copyright &copy; 2026 3soos3 | Licensed under MIT License

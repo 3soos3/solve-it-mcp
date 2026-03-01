@@ -48,7 +48,35 @@ This fork has been significantly enhanced with production-ready features while m
 - Secret scanning with TruffleHog
 
 ## [Unreleased]
-- Future enhancements will be listed here
+
+### Added
+- **Comprehensive documentation site** with MkDocs Material
+  - Deployed to GitHub Pages at https://3soos3.github.io/solve-it-mcp/
+  - Persona-specific guides for forensic analysts and researchers
+  - Complete getting started guide with tabbed options
+  - Troubleshooting guide with common issues and solutions
+  - Integration examples and use cases
+- **Automated documentation deployment** via GitHub Actions
+- **Requirements management** with pip-tools for reproducible builds
+- **Documentation badge** in README linking to docs site
+
+### Changed
+- **Documentation restructure**: Organized into logical categories
+  - `docs/architecture/` - Implementation and security details
+  - `docs/deployment/` - Docker and Kubernetes guides
+  - `docs/development/` - Contributing, testing, and releases
+  - `docs/guides/` - User-focused tutorials and troubleshooting
+  - `docs/reference/` - API and tool references (coming soon)
+- **README.md**: Condensed from 577 to ~200 lines with clear navigation to comprehensive docs
+- **Documentation references**: Updated all cross-references to new structure
+- **Makefile**: Added docs-serve and docs-build commands
+
+### Fixed
+- **Cross-references**: Updated all internal documentation links
+  - `.github/workflows/docker-publish.yml` → `docs/deployment/docker.md`
+  - `.github/workflows/zenodo-publish.yml` → new doc paths
+  - `docs/development/releases.md` → fixed MULTIARCH_TESTING link
+  - `examples/k8s/README.md` → updated documentation links
 
 ---
 
