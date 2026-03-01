@@ -128,7 +128,7 @@ jobs:
 
       - name: Upload Hadolint results to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3.24.6
+        uses: github/codeql-action/upload-sarif@v4.32.4
         with:
           sarif_file: hadolint.sarif
           category: hadolint
