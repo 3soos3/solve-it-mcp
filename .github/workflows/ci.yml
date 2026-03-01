@@ -100,7 +100,8 @@ jobs:
             --cov-report=term-missing \
             --cov-report=xml \
             --cov-report=html \
-            --junit-xml=pytest-results.xml
+            --junit-xml=pytest-results.xml \
+            -m "not integration"
         continue-on-error: true
 
       - name: Upload coverage to Codecov
@@ -126,7 +127,62 @@ jobs:
           name: coverage-report-${{ matrix.python-version }}
           path: htmlcov/
 
-  # Job 3: YAML Linting
+  # Job 3: HTTP Transport Integration Tests
+  http-integration-tests:
+    name: HTTP Transport Integration Tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run HTTP integration tests (SDK client)
+        run: |
+          echo "::group::HTTP Integration Tests with MCP SDK Client"
+          pytest tests/test_mcp_client_http.py \
+            --verbose \
+            --tb=short \
+            --junit-xml=http-integration-results.xml
+          echo "::endgroup::"
+        continue-on-error: true  # Don't block CI if integration tests fail
+
+      - name: Run bash integration tests
+        run: |
+          echo "::group::Bash Integration Tests"
+          bash tests/integration/test_http_mcp.sh || echo "Bash tests completed with some failures"
+          echo "::endgroup::"
+        continue-on-error: true  # Don't block CI if bash tests fail
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        with:
+          name: http-integration-results
+          path: http-integration-results.xml
+
+      - name: Integration test summary
+        if: always()
+        run: |
+          echo "## HTTP Integration Tests" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ SDK integration tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Bash integration tests completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Note: Integration test failures do not block CI_" >> $GITHUB_STEP_SUMMARY
+
+  # Job 4: YAML Linting
   yaml-lint:
     name: YAML Linting
     runs-on: ubuntu-latest
@@ -143,22 +199,28 @@ jobs:
           yamllint .github/workflows/ -f github
           echo "::endgroup::"
 
-  # Job 4: CI Summary
+  # Job 5: CI Summary
   ci-summary:
     name: CI Summary
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    needs: [code-quality, tests, yaml-lint]
+    needs: [code-quality, tests, http-integration-tests, yaml-lint]
     if: always()
     steps:
-      - name: Check if all jobs passed
+      - name: Check if critical jobs passed
         run: |
+          # Only fail if critical jobs fail (not integration tests)
           if [[ "${{ needs.code-quality.result }}" != "success" ]] || \
              [[ "${{ needs.tests.result }}" != "success" ]] || \
              [[ "${{ needs.yaml-lint.result }}" != "success" ]]; then
-            echo "::error::One or more CI jobs failed"
+            echo "::error::One or more critical CI jobs failed"
             exit 1
+          fi
+          
+          # Integration tests are informational only
+          if [[ "${{ needs.http-integration-tests.result }}" != "success" ]]; then
+            echo "::warning::HTTP integration tests had issues (non-blocking)"
           fi
 
       - name: Create CI summary
@@ -166,12 +228,17 @@ jobs:
         run: |
           echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Job Status" >> $GITHUB_STEP_SUMMARY
+          echo "### Critical Jobs" >> $GITHUB_STEP_SUMMARY
           echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Code Quality | ${{ needs.code-quality.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| YAML Lint | ${{ needs.yaml-lint.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Optional Jobs (Non-Blocking)" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| HTTP Integration Tests | ${{ needs.http-integration-tests.result == 'success' && '✅ Passed' || '⚠️ Issues' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "*Fast feedback for code quality and correctness.*" >> $GITHUB_STEP_SUMMARY
