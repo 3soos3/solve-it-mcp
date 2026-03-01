@@ -20,6 +20,33 @@ updates:
       include: "scope"
     reviewers:
       - "3soos3"
+    # Hybrid grouping strategy: security + ecosystem groups
+    groups:
+      # Group 1: All security updates (highest priority)
+      security-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "security-update"
+      # Group 2: Official GitHub Actions (safe for auto-merge)
+      github-actions-safe:
+        patterns:
+          - "actions/*"
+          - "github/*"
+        update-types:
+          - "patch"
+          - "minor"
+        exclude-patterns:
+          - "actions/upload-artifact"  # Known breaking changes (see PR #35)
+      # Group 3: Third-party actions (conservative grouping)
+      third-party-actions:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "actions/*"
+          - "github/*"
+        update-types:
+          - "patch"
 
   # Python dependencies
   - package-ecosystem: "pip"
@@ -38,13 +65,18 @@ updates:
       include: "scope"
     reviewers:
       - "3soos3"
-    # Group patch updates together
+    # Group updates by semantic version type
     groups:
       python-patches:
         patterns:
           - "*"
         update-types:
           - "patch"
+      python-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
 
   # Docker dependencies
   - package-ecosystem: "docker"
@@ -63,3 +95,10 @@ updates:
       include: "scope"
     reviewers:
       - "3soos3"
+    # Group Docker base image updates
+    groups:
+      docker-patches:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"

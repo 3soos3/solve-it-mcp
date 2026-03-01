@@ -1,0 +1,165 @@
+name: Dependabot Auto-Merge
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to test'
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto-Merge Safe Dependencies
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Get PR number
+        id: pr
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "number=${{ inputs.pr_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fetch Dependabot Metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Check if PR has hold label
+        id: check_hold
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LABELS=$(gh pr view ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --json labels --jq '.labels[].name')
+          if echo "$LABELS" | grep -q "dependencies:hold"; then
+            echo "hold=true" >> $GITHUB_OUTPUT
+          else
+            echo "hold=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Determine if safe to auto-merge
+        id: safety_check
+        env:
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          ECOSYSTEM: ${{ steps.metadata.outputs.package-ecosystem }}
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+        run: |
+          SAFE_TO_MERGE=false
+          REASON=""
+
+          echo "Safety Analysis: UPDATE_TYPE=$UPDATE_TYPE ECOSYSTEM=$ECOSYSTEM"
+
+          if [[ "$UPDATE_TYPE" == *"security"* ]]; then
+            SAFE_TO_MERGE=true
+            REASON="Security update - auto-merge after CI"
+          elif [[ "$ECOSYSTEM" == "github_actions" ]] && \
+               [[ "$UPDATE_TYPE" == "version-update:semver-patch" || \
+                  "$UPDATE_TYPE" == "version-update:semver-minor" ]]; then
+            if echo "$DEPENDENCY_NAMES" | grep -qE "actions/upload-artifact"; then
+              SAFE_TO_MERGE=false
+              REASON="Blocklisted package"
+            else
+              SAFE_TO_MERGE=true
+              REASON="GitHub Actions safe update"
+            fi
+          elif [[ "$ECOSYSTEM" == "pip" || "$ECOSYSTEM" == "docker" ]]; then
+            SAFE_TO_MERGE=false
+            REASON="Forensic policy requires manual review"
+          elif [[ "$UPDATE_TYPE" == "version-update:semver-major" ]]; then
+            SAFE_TO_MERGE=false
+            REASON="Major update requires manual review"
+          else
+            SAFE_TO_MERGE=false
+            REASON="Does not match auto-merge criteria"
+          fi
+
+          echo "safe=$SAFE_TO_MERGE" >> $GITHUB_OUTPUT
+          echo "reason=$REASON" >> $GITHUB_OUTPUT
+          echo "Decision: SAFE=$SAFE_TO_MERGE REASON=$REASON"
+
+      - name: Wait for required checks
+        if: |
+          steps.check_hold.outputs.hold == 'false' &&
+          steps.safety_check.outputs.safe == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for required checks..."
+          REQUIRED_CHECKS=("Code Quality" "Unit Tests (3.11)" "Unit Tests (3.12)" "CI Summary" "Security Summary" "PR Validation Summary")
+          TIMEOUT=1200
+          ELAPSED=0
+          INTERVAL=30
+
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            CHECKS=$(gh pr checks ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --json name,conclusion 2>/dev/null || echo "[]")
+            ALL_PASSED=true
+
+            for check in "${REQUIRED_CHECKS[@]}"; do
+              STATUS=$(echo "$CHECKS" | jq -r ".[] | select(.name == \"$check\") | .conclusion")
+              if [ "$STATUS" = "SUCCESS" ] || [ "$STATUS" = "success" ]; then
+                echo "✅ $check"
+              elif [ "$STATUS" = "FAILURE" ] || [ "$STATUS" = "failure" ]; then
+                echo "❌ $check FAILED"
+                exit 1
+              else
+                echo "⏳ $check pending"
+                ALL_PASSED=false
+              fi
+            done
+
+            if [ "$ALL_PASSED" = true ]; then
+              echo "All checks passed!"
+              break
+            fi
+
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "Timeout waiting for checks"
+            exit 1
+          fi
+
+      - name: Approve and enable auto-merge
+        if: |
+          steps.check_hold.outputs.hold == 'false' &&
+          steps.safety_check.outputs.safe == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Auto-approving and enabling auto-merge for PR #${{ steps.pr.outputs.number }}"
+          gh pr review ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --approve \
+            --body "Automated approval: ${{ steps.safety_check.outputs.reason }}. All CI checks passed. Auto-merging via squash."
+          gh pr merge ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --auto --squash
+          echo "Auto-merge enabled"
+
+      - name: Comment on manual review PRs
+        if: |
+          steps.check_hold.outputs.hold == 'false' &&
+          steps.safety_check.outputs.safe == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} \
+            --body "Manual review required: ${{ steps.safety_check.outputs.reason }}. This PR does not qualify for auto-merge based on forensic software policy."
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Dependabot Auto-Merge Summary" >> $GITHUB_STEP_SUMMARY
+          echo "PR: #${{ steps.pr.outputs.number }}" >> $GITHUB_STEP_SUMMARY
+          echo "Hold: ${{ steps.check_hold.outputs.hold }}" >> $GITHUB_STEP_SUMMARY
+          echo "Safe: ${{ steps.safety_check.outputs.safe }}" >> $GITHUB_STEP_SUMMARY
+          echo "Reason: ${{ steps.safety_check.outputs.reason }}" >> $GITHUB_STEP_SUMMARY
