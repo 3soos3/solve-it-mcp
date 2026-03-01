@@ -217,7 +217,7 @@ jobs:
             echo "::error::One or more critical CI jobs failed"
             exit 1
           fi
-          
+
           # Integration tests are informational only
           if [[ "${{ needs.http-integration-tests.result }}" != "success" ]]; then
             echo "::warning::HTTP integration tests had issues (non-blocking)"
@@ -226,19 +226,51 @@ jobs:
       - name: Create CI summary
         if: always()
         run: |
-          echo "## CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Critical Jobs" >> $GITHUB_STEP_SUMMARY
-          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Code Quality | ${{ needs.code-quality.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Unit Tests | ${{ needs.tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| YAML Lint | ${{ needs.yaml-lint.result == 'success' && '✅ Passed' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Optional Jobs (Non-Blocking)" >> $GITHUB_STEP_SUMMARY
-          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| HTTP Integration Tests | ${{ needs.http-integration-tests.result == 'success' && '✅ Passed' || '⚠️ Issues' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*Fast feedback for code quality and correctness.*" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## CI Pipeline Summary"
+            echo ""
+            echo "### Critical Jobs"
+            echo "| Job | Status |"
+            echo "|-----|--------|"
+          } >> $GITHUB_STEP_SUMMARY
+
+          # Code Quality status
+          if [[ "${{ needs.code-quality.result }}" == "success" ]]; then
+            echo "| Code Quality | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Code Quality | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Unit Tests status
+          if [[ "${{ needs.tests.result }}" == "success" ]]; then
+            echo "| Unit Tests | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Unit Tests | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # YAML Lint status
+          if [[ "${{ needs.yaml-lint.result }}" == "success" ]]; then
+            echo "| YAML Lint | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| YAML Lint | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          {
+            echo ""
+            echo "### Optional Jobs (Non-Blocking)"
+            echo "| Job | Status |"
+            echo "|-----|--------|"
+          } >> $GITHUB_STEP_SUMMARY
+
+          # HTTP Integration Tests status
+          if [[ "${{ needs.http-integration-tests.result }}" == "success" ]]; then
+            echo "| HTTP Integration Tests | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| HTTP Integration Tests | ⚠️ Issues |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          {
+            echo ""
+            echo "---"
+            echo "*Fast feedback for code quality and correctness.*"
+          } >> $GITHUB_STEP_SUMMARY
