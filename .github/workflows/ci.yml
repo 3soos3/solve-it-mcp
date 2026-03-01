@@ -7,28 +7,10 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'requirements.txt'
-      - 'pyproject.toml'
-      - 'pytest.ini'
-      - 'conftest.py'
-      - '.github/workflows/ci.yml'
   pull_request:
     branches:
       - main
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'scripts/**'
-      - 'requirements.txt'
-      - 'pyproject.toml'
-      - 'pytest.ini'
-      - 'conftest.py'
-      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 concurrency:
@@ -39,10 +21,37 @@ env:
   PYTHON_VERSION: "3.12"
 
 jobs:
+  # Job 0: Detect changed files to skip unnecessary jobs
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            code:
+              - 'src/**'
+              - 'tests/**'
+              - 'scripts/**'
+              - 'requirements.txt'
+              - 'pyproject.toml'
+              - 'pytest.ini'
+              - 'conftest.py'
+              - '.github/workflows/ci.yml'
+
   # Job 1: Code Quality Checks (Linting, Formatting, Type Checking)
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     permissions:
       contents: read
     steps:
@@ -94,6 +103,8 @@ jobs:
   tests:
     name: Unit Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     permissions:
       contents: read
     strategy:
@@ -153,6 +164,8 @@ jobs:
   http-integration-tests:
     name: HTTP Transport Integration Tests
     runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     permissions:
       contents: read
     steps:
@@ -226,21 +239,32 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    needs: [code-quality, tests, http-integration-tests, yaml-lint]
+    needs: [changes, code-quality, tests, http-integration-tests, yaml-lint]
     if: always()
     steps:
       - name: Check if critical jobs passed
         run: |
-          # Only fail if critical jobs fail (not integration tests)
-          if [[ "${{ needs.code-quality.result }}" != "success" ]] || \
-             [[ "${{ needs.tests.result }}" != "success" ]] || \
-             [[ "${{ needs.yaml-lint.result }}" != "success" ]]; then
+          # Only fail if critical jobs fail (not if skipped)
+          CODE_QUALITY="${{ needs.code-quality.result }}"
+          TESTS="${{ needs.tests.result }}"
+          YAML_LINT="${{ needs.yaml-lint.result }}"
+          
+          # Fail if any job failed (but not if skipped)
+          if [[ "$CODE_QUALITY" == "failure" ]] || \
+             [[ "$TESTS" == "failure" ]] || \
+             [[ "$YAML_LINT" == "failure" ]]; then
             echo "::error::One or more critical CI jobs failed"
             exit 1
           fi
+          
+          # Treat success or skipped as passing
+          echo "Code Quality: $CODE_QUALITY"
+          echo "Tests: $TESTS"
+          echo "YAML Lint: $YAML_LINT"
 
           # Integration tests are informational only
-          if [[ "${{ needs.http-integration-tests.result }}" != "success" ]]; then
+          HTTP_INTEGRATION="${{ needs.http-integration-tests.result }}"
+          if [[ "$HTTP_INTEGRATION" == "failure" ]]; then
             echo "::warning::HTTP integration tests had issues (non-blocking)"
           fi
 
@@ -258,6 +282,8 @@ jobs:
           # Code Quality status
           if [[ "${{ needs.code-quality.result }}" == "success" ]]; then
             echo "| Code Quality | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.code-quality.result }}" == "skipped" ]]; then
+            echo "| Code Quality | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Code Quality | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
           fi
@@ -265,6 +291,8 @@ jobs:
           # Unit Tests status
           if [[ "${{ needs.tests.result }}" == "success" ]]; then
             echo "| Unit Tests | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.tests.result }}" == "skipped" ]]; then
+            echo "| Unit Tests | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Unit Tests | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
           fi
@@ -272,6 +300,8 @@ jobs:
           # YAML Lint status
           if [[ "${{ needs.yaml-lint.result }}" == "success" ]]; then
             echo "| YAML Lint | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.yaml-lint.result }}" == "skipped" ]]; then
+            echo "| YAML Lint | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| YAML Lint | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
           fi
@@ -286,8 +316,16 @@ jobs:
           # HTTP Integration Tests status
           if [[ "${{ needs.http-integration-tests.result }}" == "success" ]]; then
             echo "| HTTP Integration Tests | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.http-integration-tests.result }}" == "skipped" ]]; then
+            echo "| HTTP Integration Tests | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| HTTP Integration Tests | ⚠️ Issues |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Add note if jobs were skipped
+          if [[ "${{ needs.changes.outputs.code }}" != "true" ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "ℹ️ _Code jobs skipped - no relevant file changes detected_" >> $GITHUB_STEP_SUMMARY
           fi
 
           {
