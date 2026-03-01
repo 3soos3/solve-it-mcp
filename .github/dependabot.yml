@@ -20,15 +20,11 @@ updates:
       include: "scope"
     reviewers:
       - "3soos3"
-    # Hybrid grouping strategy: security + ecosystem groups
+    # Ecosystem-based grouping strategy
+    # Note: Security updates cannot be grouped separately (invalid update-type)
+    # They will be included in their respective semantic version groups
     groups:
-      # Group 1: All security updates (highest priority)
-      security-updates:
-        patterns:
-          - "*"
-        update-types:
-          - "security-update"
-      # Group 2: Official GitHub Actions (safe for auto-merge)
+      # Group 1: Official GitHub Actions patch/minor updates
       github-actions-safe:
         patterns:
           - "actions/*"
@@ -38,7 +34,7 @@ updates:
           - "minor"
         exclude-patterns:
           - "actions/upload-artifact"  # Known breaking changes (see PR #35)
-      # Group 3: Third-party actions (conservative grouping)
+      # Group 2: Third-party actions patch updates only
       third-party-actions:
         patterns:
           - "*"
