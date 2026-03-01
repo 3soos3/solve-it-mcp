@@ -394,7 +394,7 @@ Always consult with your legal team regarding expert testimony requirements in y
 1. Fork the SOLVE-IT repository
 2. Add your custom techniques
 3. Rebuild the Docker image with your data
-4. See [Contributing Guide](../development/contributing.md)
+4. See [Testing Guide](../development/testing-guide.md) to validate your changes
 
 ### Q: Is this suitable for sensitive investigations?
 
@@ -475,7 +475,7 @@ done
 ## Next Steps
 
 - **Explore the full tool set**: [Tools Reference](../reference/tools-overview.md)
-- **Learn about data structure**: [Techniques](../reference/techniques.md), [Weaknesses](../reference/weaknesses.md), [Mitigations](../reference/mitigations.md)
+- **Learn about architecture**: [Overview](../architecture/overview.md), [Security Model](../architecture/security-model.md)
 - **Deploy in production**: [Kubernetes Guide](../deployment/kubernetes.md)
 - **Integrate with your workflow**: [Integration Guide](integration.md)
 

@@ -76,10 +76,14 @@ nav:
     - For Researchers: guides/for-researchers.md
     - Integration: guides/integration.md
     - Troubleshooting: guides/troubleshooting.md
+  - Reference:
+    - Tools Overview: reference/tools-overview.md
   - Deployment:
     - Docker: deployment/docker.md
     - Kubernetes: deployment/kubernetes.md
   - Architecture:
+    - Overview: architecture/overview.md
+    - Security Model: architecture/security-model.md
     - Implementation Details: architecture/implementation.md
   - Development:
     - Local Testing: development/local-testing.md

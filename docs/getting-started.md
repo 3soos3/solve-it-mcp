@@ -310,13 +310,13 @@ Understand how to use SOLVE-IT MCP in your research:
 
 - [Researchers Guide](guides/for-researchers.md)
 - [Citation Information](guides/for-researchers.md#citing-this-software)
-- [Data Structure](reference/techniques.md)
+- [Tools Overview](reference/tools-overview.md)
 
 ### For Developers
 Set up a development environment:
 
 - [Local Development Guide](development/local-testing.md)
-- [Contributing Guide](development/contributing.md)
+- [Testing Guide](development/testing-guide.md)
 - [Architecture Overview](architecture/overview.md)
 
 ### For Production Deployments

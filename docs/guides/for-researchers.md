@@ -304,7 +304,7 @@ SOLVE-IT Framework
     └── Addressed Weaknesses
 ```
 
-See [Data Structure Reference](../reference/techniques.md) for detailed schemas.
+See [Tools Overview](../reference/tools-overview.md) for available data access methods.
 
 ## Ethical Considerations
 

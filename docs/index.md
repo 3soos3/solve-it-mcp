@@ -57,18 +57,6 @@ SOLVE-IT MCP Server is a production-ready implementation that exposes the entire
 
     Complete reference for all 20+ MCP tools
 
-- :material-file-document: **[Techniques Reference](reference/techniques.md)**
-
-    Understanding SOLVE-IT techniques
-
-- :material-alert-circle: **[Weaknesses Reference](reference/weaknesses.md)**
-
-    Technique weaknesses and limitations
-
-- :material-shield-check: **[Mitigations Reference](reference/mitigations.md)**
-
-    Addressing technique weaknesses
-
 </div>
 
 ### Architecture & Development
@@ -87,9 +75,9 @@ SOLVE-IT MCP Server is a production-ready implementation that exposes the entire
 
     Technical implementation deep-dive
 
-- :material-account-group: **[Contributing](development/contributing.md)**
+- :material-test-tube: **[Testing Guide](development/testing-guide.md)**
 
-    How to contribute to the project
+    Local and multi-arch testing
 
 </div>
 

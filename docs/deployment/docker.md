@@ -643,10 +643,10 @@ Docker Hub images do **NOT** include Cosign signatures/SBOM attachments to keep 
 
 ## Next Steps
 
-- **Kubernetes Deployment**: See [KUBERNETES.md](./KUBERNETES.md)
+- **Kubernetes Deployment**: See [Kubernetes Guide](kubernetes.md)
 - **Helm Charts**: Visit [3soos3/solveit-charts](https://github.com/3soos3/solveit-charts)
 - **CI/CD**: Check `.github/workflows/docker-publish.yml` for automated builds
-- **Contributing**: See [CONTRIBUTING.md](../CONTRIBUTING.md)
+- **Development**: See [Testing Guide](../development/testing-guide.md)
 
 ---
 
