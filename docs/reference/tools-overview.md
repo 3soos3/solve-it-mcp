@@ -44,7 +44,6 @@ See the [Getting Started Guide](../getting-started.md) for usage examples.
 
 ## Need More Information?
 
-- [Techniques Reference](techniques.md)
-- [Weaknesses Reference](weaknesses.md)
-- [Mitigations Reference](mitigations.md)
 - [For Forensic Analysts Guide](../guides/for-forensic-analysts.md)
+- [For Researchers Guide](../guides/for-researchers.md)
+- [Architecture Overview](../architecture/overview.md)

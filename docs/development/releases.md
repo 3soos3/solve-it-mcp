@@ -448,7 +448,7 @@ podman build --platform linux/arm/v7 -t test:armv7 .
 - [Multi-Architecture Testing](multiarch-testing.md)
 - [Docker Documentation](../deployment/docker.md)
 - [Kubernetes Documentation](../deployment/kubernetes.md)
-- [Contributing Guidelines](contributing.md)
+- [Testing Guide](testing-guide.md)
 
 ## Support
 
