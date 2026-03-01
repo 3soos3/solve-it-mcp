@@ -3,37 +3,38 @@
 This package provides different transport implementations for the MCP server:
 
 - stdio_transport: Standard input/output transport for local/CLI usage
-- http_transport: HTTP/SSE transport for web clients and Kubernetes deployment
+- http_transport_sdk: HTTP/SSE transport using official MCP SDK (recommended)
 
 The transport layer abstracts the communication protocol from the core MCP
 server logic, enabling the same server to work over different transports.
 
 Typical usage:
-    >>> from transports import run_stdio_server, HTTPTransportManager
+    >>> from transports import run_stdio_server, run_http_server
     >>> from config import load_config
     >>>
     >>> config = load_config()
     >>> if config.transport == "stdio":
     ...     await run_stdio_server(server)
     ... elif config.transport == "http":
-    ...     http_manager = HTTPTransportManager(server, config.http)
-    ...     await http_manager.run()
+    ...     await run_http_server(server, config.http)
 """
 
 from .stdio_transport import run_stdio_server
 
 # HTTP transport import is conditional to avoid dependency issues
 try:
-    from .http_transport import HTTPTransportManager
+    from .http_transport_sdk import run_http_server, create_mcp_http_app
 
     HTTP_AVAILABLE = True
 except ImportError:
     HTTP_AVAILABLE = False
-    HTTPTransportManager = None
+    run_http_server = None
+    create_mcp_http_app = None
 
 
 __all__ = [
     "HTTP_AVAILABLE",
-    "HTTPTransportManager",
     "run_stdio_server",
+    "run_http_server",
+    "create_mcp_http_app",
 ]
