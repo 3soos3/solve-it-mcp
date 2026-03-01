@@ -7,10 +7,28 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - 'pytest.ini'
+      - 'conftest.py'
+      - '.github/workflows/ci.yml'
   pull_request:
     branches:
       - main
     types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - 'pytest.ini'
+      - 'conftest.py'
+      - '.github/workflows/ci.yml'
   workflow_dispatch:
 
 concurrency:

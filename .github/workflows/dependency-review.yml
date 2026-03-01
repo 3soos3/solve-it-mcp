@@ -6,6 +6,10 @@ name: Dependency Review
 on:
   pull_request:
     branches: ["main"]
+    paths:
+      - 'requirements.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/dependency-review.yml'
 
 permissions:
   contents: read
