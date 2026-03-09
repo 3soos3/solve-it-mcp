@@ -140,7 +140,7 @@ jobs:
           else
             # Get the last published tag date
             LAST_TAG="${{ steps.published.outputs.published_version }}"
-            
+
             if [ "$LAST_TAG" != "none" ]; then
               # Check commits since last published tag
               RECENT_COMMITS=$(git log "${LAST_TAG}..origin/main" --oneline 2>/dev/null | wc -l)
