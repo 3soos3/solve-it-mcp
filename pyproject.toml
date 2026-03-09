@@ -3,7 +3,7 @@ name = "solveit-mcp-server"
 version = "0.2025.10.0.1.0"
 description = "Production-ready MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [{name = "3soos3"}]
 keywords = ["digital-forensics", "mcp-server", "model-context-protocol", "solve-it", "llm", "forensic-investigation"]
@@ -12,7 +12,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Security",
 ]

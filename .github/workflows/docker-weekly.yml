@@ -1,12 +1,13 @@
-name: Docker - Monthly Rebuild
+name: Docker - Weekly Rebuild
 
-# Smart monthly rebuild: Only rebuilds if SOLVE-IT dataset version is newer than published image
+# Smart weekly rebuild: Only rebuilds if SOLVE-IT dataset version is newer than published image
+# or if this repository has new commits since last release
 # This keeps images up-to-date with security patches and dependency updates
 
 on:
   schedule:
-    # Run on the 1st of every month at 00:00 UTC
-    - cron: '0 0 1 * *'
+    # Run weekly on Sunday at 00:00 UTC
+    - cron: '0 0 * * 0'
   workflow_dispatch:
     # Allow manual trigger for testing
 
@@ -135,15 +136,23 @@ jobs:
             NEW_TAG="v${SOLVEIT_LATEST}-0.1.0"
             MCP_PATCH="0.1.0"
 
-          # Case 3: SOLVE-IT same, but create patch for monthly security updates
+          # Case 3: SOLVE-IT same, but check for repo changes since last release
           else
-            # Check if main branch has commits since last month
-            LAST_MONTH=$(date -d '1 month ago' +%s)
-            RECENT_COMMITS=$(git log --since="@${LAST_MONTH}" --oneline origin/main | wc -l)
+            # Get the last published tag date
+            LAST_TAG="${{ steps.published.outputs.published_version }}"
+            
+            if [ "$LAST_TAG" != "none" ]; then
+              # Check commits since last published tag
+              RECENT_COMMITS=$(git log "${LAST_TAG}..origin/main" --oneline 2>/dev/null | wc -l)
+            else
+              # No previous tag, check last week
+              LAST_WEEK=$(date -d '1 week ago' +%s)
+              RECENT_COMMITS=$(git log --since="@${LAST_WEEK}" --oneline origin/main | wc -l)
+            fi
 
             if [ "$RECENT_COMMITS" -gt 0 ]; then
               REBUILD=true
-              REASON="Security/dependency updates (${RECENT_COMMITS} commits in last month)"
+              REASON="Repository updates (${RECENT_COMMITS} commits since last release)"
 
               # Increment patch version (e.g., 0.1.0 -> 0.1.1)
               MAJOR=$(echo "$MCP_PUBLISHED" | cut -d. -f1)
@@ -176,7 +185,7 @@ jobs:
       - name: Create summary
         if: always()
         run: |
-          echo "## Monthly Rebuild Check" >> $GITHUB_STEP_SUMMARY
+          echo "## Weekly Rebuild Check" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -201,7 +210,7 @@ jobs:
           fi
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Next scheduled check:** $(date -d 'first day of next month' +%Y-%m-%d)" >> $GITHUB_STEP_SUMMARY
+          echo "**Next scheduled check:** $(date -d 'next sunday' +%Y-%m-%d)" >> $GITHUB_STEP_SUMMARY
 
   # Call the main docker-publish workflow if rebuild is needed
   build-publish:
