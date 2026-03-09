@@ -177,7 +177,7 @@ jobs:
             fi
           else
             # Dependabot PRs need specific checks
-            REQUIRED_CHECKS=("Code Quality" "Unit Tests (3.11)" "Unit Tests (3.12)" "CI Summary" "Security Summary" "PR Validation Summary")
+            REQUIRED_CHECKS=("Code Quality" "Unit Tests" "CI Summary" "Security Summary" "PR Validation Summary")
             TIMEOUT=1200
             ELAPSED=0
             INTERVAL=30
@@ -214,12 +214,25 @@ jobs:
             fi
           fi
 
+      - name: Check PAT availability
+        if: |
+          steps.check_hold.outputs.hold == 'false' &&
+          steps.safety_check.outputs.safe == 'true'
+        run: |
+          if [ -z "${{ secrets.PAT }}" ] && [ -z "${{ secrets.BOT_TOKEN }}" ]; then
+            echo "::warning::PAT or BOT_TOKEN not configured - will use GITHUB_TOKEN"
+            echo "::warning::Auto-merge may fail for PRs created by workflows (cannot approve own PR)"
+            echo "::warning::Add PAT secret to enable full automation - see docs for setup"
+          else
+            echo "::notice::✅ Using PAT/BOT_TOKEN for auto-merge"
+          fi
+
       - name: Approve and enable auto-merge
         if: |
           steps.check_hold.outputs.hold == 'false' &&
           steps.safety_check.outputs.safe == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT || secrets.BOT_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           echo "Auto-approving and enabling auto-merge for PR #${{ steps.pr.outputs.number }}"
           gh pr review ${{ steps.pr.outputs.number }} --repo ${{ github.repository }} --approve \
