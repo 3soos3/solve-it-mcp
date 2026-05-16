@@ -27,7 +27,7 @@ class TestGetDatabaseDescriptionTool:
         tool = GetDatabaseDescriptionTool()
 
         assert tool.name == "get_database_description"
-        assert "comprehensive description" in tool.description
+        assert "call this first" in tool.description.lower()
         assert tool.Params == GetDatabaseDescriptionParams
 
     @pytest.mark.asyncio
@@ -89,7 +89,7 @@ class TestSearchTool:
         tool = SearchTool()
 
         assert tool.name == "search"
-        assert "searches the knowledge base" in tool.description.lower()
+        assert "search solve-it" in tool.description.lower()
         assert tool.Params == SearchParams
 
     @pytest.mark.asyncio
@@ -115,7 +115,7 @@ class TestSearchTool:
 
             # Verify knowledge base search was called correctly
             tool.knowledge_base.search.assert_called_once_with(
-                keywords="test search", item_types=None
+                keywords="test search", item_types=None, search_logic="AND"
             )
 
     @pytest.mark.asyncio
@@ -129,7 +129,7 @@ class TestSearchTool:
             tool = SearchTool()
             tool.knowledge_base = mock_solve_it_environment["knowledge_base"]
 
-            params = SearchParams(keywords="test", item_types=["techniques", "weaknesses"])
+            params = SearchParams(keywords="test", item_types=["techniques", "weaknesses"], search_logic="AND")
             result = await tool.invoke(params)
 
             # Validate JSON response
@@ -137,7 +137,7 @@ class TestSearchTool:
 
             # Verify knowledge base search was called correctly
             tool.knowledge_base.search.assert_called_once_with(
-                keywords="test", item_types=["techniques", "weaknesses"]
+                keywords="test", item_types=["techniques", "weaknesses"], search_logic="AND"
             )
 
     @pytest.mark.asyncio

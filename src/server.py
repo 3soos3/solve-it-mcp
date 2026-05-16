@@ -53,9 +53,11 @@ from tools.solveit_tools import (
     GetAllTechniquesWithNameAndIdTool,
     GetAllWeaknessesWithFullDetailTool,
     GetAllWeaknessesWithNameAndIdTool,
+    GetCitationTool,
     GetDatabaseDescriptionTool,
     GetMitigationDetailsTool,
     GetMitigationsForWeaknessTool,
+    GetObjectivesForTechniqueTool,
     GetTechniqueDetailsTool,
     GetTechniquesForMitigationTool,
     GetTechniquesForObjectiveTool,
@@ -226,6 +228,7 @@ async def main() -> None:
             GetTechniqueDetailsTool(init_kb=False),
             GetWeaknessDetailsTool(init_kb=False),
             GetMitigationDetailsTool(init_kb=False),
+            GetCitationTool(init_kb=False),
             # Forward relationship query tools
             GetWeaknessesForTechniqueTool(init_kb=False),
             GetMitigationsForWeaknessTool(init_kb=False),
@@ -236,6 +239,7 @@ async def main() -> None:
             # Objective/Mapping management tools
             ListObjectivesTool(init_kb=False),
             GetTechniquesForObjectiveTool(init_kb=False),
+            GetObjectivesForTechniqueTool(init_kb=False),
             ListAvailableMappingsTool(init_kb=False),
             LoadObjectiveMappingTool(init_kb=False),
             # Bulk retrieval tools (concise format)

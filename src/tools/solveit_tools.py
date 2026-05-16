@@ -1,6 +1,7 @@
 """SOLVE-IT MCP Tools - Core tools for accessing the SOLVE-IT knowledge base."""
 
 import json
+from typing import Literal
 
 from pydantic import Field
 
@@ -10,7 +11,6 @@ from .solveit_base import SolveItBaseTool, ToolParams
 class GetDatabaseDescriptionParams(ToolParams):
     """Parameters for get_database_description tool."""
 
-    # No parameters needed for this tool
     pass
 
 
@@ -18,7 +18,12 @@ class GetDatabaseDescriptionTool(SolveItBaseTool[GetDatabaseDescriptionParams]):
     """Tool to get a comprehensive description of the SOLVE-IT database."""
 
     name = "get_database_description"
-    description = "Returns a comprehensive description of the SOLVE-IT database and the role of this MCP server."
+    description = (
+        "Call this first to understand the SOLVE-IT knowledge base before using other tools. "
+        "Returns the database structure, entity types (techniques DFT-XXXX, weaknesses DFW-XXXX, "
+        "mitigations DFM-XXXX, citations DFCite-XXXX), available objective mappings, and item counts. "
+        "Use this to orient yourself before searching or retrieving specific items."
+    )
     Params = GetDatabaseDescriptionParams
 
     async def invoke(self, params: GetDatabaseDescriptionParams) -> str:
@@ -34,15 +39,17 @@ class GetDatabaseDescriptionTool(SolveItBaseTool[GetDatabaseDescriptionParams]):
                     "techniques": "Digital forensic investigation methods (DFT-1001, DFT-1002, etc.)",
                     "weaknesses": "Potential problems/limitations of techniques (DFW-1001, DFW-1002, etc.)",
                     "mitigations": "Ways to address weaknesses (DFM-1001, DFM-1002, etc.)",
-                    "objectives": "Categories that organize techniques by investigation goals",
+                    "objectives": "Investigation workflow phases that group techniques (e.g. 'Acquire data', 'Preserve digital evidence')",
+                    "citations": "Academic and industry references cited by techniques and weaknesses (DFCite-XXXX)",
                 },
                 "statistics": stats,
                 "mcp_server_role": "This MCP server provides LLMs with programmatic access to the SOLVE-IT knowledge base through type-safe, validated tools",
                 "available_operations": [
-                    "Search across techniques, weaknesses, and mitigations",
+                    "Search across techniques, weaknesses, and mitigations by keyword",
                     "Retrieve detailed information by ID",
                     "Explore relationships between components",
-                    "Work with different objective mappings",
+                    "Resolve citations (DFCite-XXXX) to full bibliographic text",
+                    "Work with different objective mappings (solve-it, carrier, dfrws)",
                     "Bulk retrieval operations",
                 ],
             }
@@ -56,10 +63,27 @@ class GetDatabaseDescriptionTool(SolveItBaseTool[GetDatabaseDescriptionParams]):
 class SearchParams(ToolParams):
     """Parameters for search tool."""
 
-    keywords: str = Field(description="Keywords to search for. Use quotes for exact phrases.")
+    keywords: str = Field(
+        description=(
+            "Keywords to search for across name and description fields. "
+            "Use quotes for exact phrases (e.g. '\"memory acquisition\"'). "
+            "Multiple words are combined using search_logic (AND by default)."
+        )
+    )
     item_types: list[str] | None = Field(
         default=None,
-        description="Types of items to search ('techniques', 'weaknesses', 'mitigations'). If None, searches all types.",
+        description=(
+            "Limit search to specific entity types: 'techniques', 'weaknesses', 'mitigations'. "
+            "If omitted, searches all three types."
+        ),
+    )
+    search_logic: Literal["AND", "OR"] = Field(
+        default="AND",
+        description=(
+            "How to combine multiple keywords. "
+            "'AND' (default) requires all terms to match — use for precise queries. "
+            "'OR' requires any term to match — use for broader discovery."
+        ),
     )
 
 
@@ -67,14 +91,23 @@ class SearchTool(SolveItBaseTool[SearchParams]):
     """Tool to search the knowledge base for techniques, weaknesses, or mitigations."""
 
     name = "search"
-    description = "Searches the knowledge base for techniques, weaknesses, or mitigations matching specified keywords."
+    description = (
+        "Search SOLVE-IT by keyword when you don't know the exact ID. "
+        "Searches name and description fields across techniques, weaknesses, and mitigations. "
+        "Returns matching items sorted by relevance. "
+        "Use this as the starting point for discovery — then call get_technique_details, "
+        "get_weakness_details, or get_mitigation_details with the IDs from the results. "
+        "Prefer 'AND' logic for precise queries, 'OR' for broader exploration."
+    )
     Params = SearchParams
 
     async def invoke(self, params: SearchParams) -> str:
         """Search the knowledge base."""
         try:
             results = self.knowledge_base.search(
-                keywords=params.keywords, item_types=params.item_types
+                keywords=params.keywords,
+                item_types=params.item_types,
+                search_logic=params.search_logic,
             )
 
             return json.dumps(results, indent=2)
@@ -86,7 +119,7 @@ class SearchTool(SolveItBaseTool[SearchParams]):
 class GetTechniqueDetailsParams(ToolParams):
     """Parameters for get_technique_details tool."""
 
-    technique_id: str = Field(description="The ID of the technique (e.g., DFT-1002)")
+    technique_id: str = Field(description="The technique ID (e.g., DFT-1002)")
 
 
 class GetTechniqueDetailsTool(SolveItBaseTool[GetTechniqueDetailsParams]):
@@ -94,7 +127,10 @@ class GetTechniqueDetailsTool(SolveItBaseTool[GetTechniqueDetailsParams]):
 
     name = "get_technique_details"
     description = (
-        "Retrieves the full details for a specific SOLVE-IT technique by its ID (e.g., DFT-1002)."
+        "Retrieve full details for a technique by its DFT-XXXX ID. "
+        "The response includes name, description, subtechniques, and a 'weaknesses' list of DFW-XXXX IDs. "
+        "References appear as DFCite-XXXX IDs — call get_citation to resolve them to full bibliographic text. "
+        "Use get_weaknesses_for_technique to get weakness details in one step instead of resolving each DFW-XXXX manually."
     )
     Params = GetTechniqueDetailsParams
 
@@ -115,14 +151,19 @@ class GetTechniqueDetailsTool(SolveItBaseTool[GetTechniqueDetailsParams]):
 class GetWeaknessDetailsParams(ToolParams):
     """Parameters for get_weakness_details tool."""
 
-    weakness_id: str = Field(description="The ID of the weakness (e.g., DFW-1001)")
+    weakness_id: str = Field(description="The weakness ID (e.g., DFW-1001)")
 
 
 class GetWeaknessDetailsTool(SolveItBaseTool[GetWeaknessDetailsParams]):
-    """Tool to retrieve additional details for a specific SOLVE-IT weakness."""
+    """Tool to retrieve details for a specific SOLVE-IT weakness."""
 
     name = "get_weakness_details"
-    description = "Retrieves additional, optional details for a specific SOLVE-IT weakness by its ID (e.g., DFW-1001). The 'name' field contains the primary description of what this weakness entails."
+    description = (
+        "Retrieve details for a weakness by its DFW-XXXX ID. "
+        "The 'name' field is the primary description of what can go wrong. "
+        "The response includes ASTM error categories and a 'mitigations' list of DFM-XXXX IDs. "
+        "Use get_mitigations_for_weakness to resolve those IDs to full mitigation details in one step."
+    )
     Params = GetWeaknessDetailsParams
 
     async def invoke(self, params: GetWeaknessDetailsParams) -> str:
@@ -142,14 +183,19 @@ class GetWeaknessDetailsTool(SolveItBaseTool[GetWeaknessDetailsParams]):
 class GetMitigationDetailsParams(ToolParams):
     """Parameters for get_mitigation_details tool."""
 
-    mitigation_id: str = Field(description="The ID of the mitigation (e.g., DFM-1001)")
+    mitigation_id: str = Field(description="The mitigation ID (e.g., DFM-1001)")
 
 
 class GetMitigationDetailsTool(SolveItBaseTool[GetMitigationDetailsParams]):
-    """Tool to retrieve additional details for a specific SOLVE-IT mitigation."""
+    """Tool to retrieve details for a specific SOLVE-IT mitigation."""
 
     name = "get_mitigation_details"
-    description = "Retrieves additional, optional details for a specific SOLVE-IT mitigation by its ID (e.g., DFM-1001). The 'name' field contains the primary description of what this mitigation entails."
+    description = (
+        "Retrieve details for a mitigation by its DFM-XXXX ID. "
+        "The 'name' field is the primary description of the recommended action. "
+        "Use get_weaknesses_for_mitigation or get_techniques_for_mitigation to understand "
+        "which weaknesses and techniques this mitigation addresses."
+    )
     Params = GetMitigationDetailsParams
 
     async def invoke(self, params: GetMitigationDetailsParams) -> str:
@@ -168,17 +214,49 @@ class GetMitigationDetailsTool(SolveItBaseTool[GetMitigationDetailsParams]):
             )
 
 
+class GetCitationParams(ToolParams):
+    """Parameters for get_citation tool."""
+
+    citation_id: str = Field(description="The citation ID (e.g., DFCite-1115)")
+
+
+class GetCitationTool(SolveItBaseTool[GetCitationParams]):
+    """Tool to resolve a citation ID to full bibliographic text."""
+
+    name = "get_citation"
+    description = (
+        "Resolve a DFCite-XXXX citation ID to its full bibliographic reference text. "
+        "Technique and weakness responses contain DFCite-XXXX IDs in their 'references' field — "
+        "call this to get the actual source title, authors, and publication details. "
+        "Use this when a user asks about the evidence or sources behind a technique or weakness."
+    )
+    Params = GetCitationParams
+
+    async def invoke(self, params: GetCitationParams) -> str:
+        """Get citation display text."""
+        try:
+            text = self.knowledge_base.get_citation_display_text(params.citation_id)
+            return json.dumps({"id": params.citation_id, "reference": text}, indent=2)
+
+        except Exception as e:
+            return self.handle_knowledge_base_error(e, f"citation {params.citation_id} retrieval")
+
+
 class GetWeaknessesForTechniqueParams(ToolParams):
     """Parameters for get_weaknesses_for_technique tool."""
 
-    technique_id: str = Field(description="The ID of the technique")
+    technique_id: str = Field(description="The technique ID (e.g., DFT-1001)")
 
 
 class GetWeaknessesForTechniqueTool(SolveItBaseTool[GetWeaknessesForTechniqueParams]):
     """Tool to retrieve all weaknesses associated with a specific technique."""
 
     name = "get_weaknesses_for_technique"
-    description = "Retrieves all weaknesses associated with a specific SOLVE-IT technique ID."
+    description = (
+        "Get all weaknesses for a technique (DFT-XXXX) with full details in one call. "
+        "More efficient than calling get_weakness_details for each DFW-XXXX ID from get_technique_details. "
+        "Use this to answer 'what can go wrong with this technique?'"
+    )
     Params = GetWeaknessesForTechniqueParams
 
     async def invoke(self, params: GetWeaknessesForTechniqueParams) -> str:
@@ -197,14 +275,18 @@ class GetWeaknessesForTechniqueTool(SolveItBaseTool[GetWeaknessesForTechniquePar
 class GetMitigationsForWeaknessParams(ToolParams):
     """Parameters for get_mitigations_for_weakness tool."""
 
-    weakness_id: str = Field(description="The ID of the weakness")
+    weakness_id: str = Field(description="The weakness ID (e.g., DFW-1001)")
 
 
 class GetMitigationsForWeaknessTool(SolveItBaseTool[GetMitigationsForWeaknessParams]):
     """Tool to retrieve all mitigations associated with a specific weakness."""
 
     name = "get_mitigations_for_weakness"
-    description = "Retrieves all mitigations associated with a specific SOLVE-IT weakness ID."
+    description = (
+        "Get all mitigations for a weakness (DFW-XXXX) with full details in one call. "
+        "More efficient than resolving each DFM-XXXX ID from get_weakness_details individually. "
+        "Use this to answer 'how can this weakness be addressed?'"
+    )
     Params = GetMitigationsForWeaknessParams
 
     async def invoke(self, params: GetMitigationsForWeaknessParams) -> str:
@@ -228,14 +310,18 @@ class GetMitigationsForWeaknessTool(SolveItBaseTool[GetMitigationsForWeaknessPar
 class GetTechniquesForWeaknessParams(ToolParams):
     """Parameters for get_techniques_for_weakness tool."""
 
-    weakness_id: str = Field(description="The ID of the weakness")
+    weakness_id: str = Field(description="The weakness ID (e.g., DFW-1001)")
 
 
 class GetTechniquesForWeaknessTool(SolveItBaseTool[GetTechniquesForWeaknessParams]):
     """Tool to retrieve all techniques that reference a specific weakness."""
 
     name = "get_techniques_for_weakness"
-    description = "Retrieves all techniques that reference a specific SOLVE-IT weakness ID."
+    description = (
+        "Find all techniques that can exhibit a specific weakness (DFW-XXXX). "
+        "Use this for reverse lookup — e.g. 'which techniques are affected by this limitation?' "
+        "Complements get_weaknesses_for_technique (forward direction)."
+    )
     Params = GetTechniquesForWeaknessParams
 
     async def invoke(self, params: GetTechniquesForWeaknessParams) -> str:
@@ -254,14 +340,18 @@ class GetTechniquesForWeaknessTool(SolveItBaseTool[GetTechniquesForWeaknessParam
 class GetWeaknessesForMitigationParams(ToolParams):
     """Parameters for get_weaknesses_for_mitigation tool."""
 
-    mitigation_id: str = Field(description="The ID of the mitigation")
+    mitigation_id: str = Field(description="The mitigation ID (e.g., DFM-1001)")
 
 
 class GetWeaknessesForMitigationTool(SolveItBaseTool[GetWeaknessesForMitigationParams]):
     """Tool to retrieve all weaknesses that reference a specific mitigation."""
 
     name = "get_weaknesses_for_mitigation"
-    description = "Retrieves all weaknesses that reference a specific SOLVE-IT mitigation ID."
+    description = (
+        "Find all weaknesses that a mitigation (DFM-XXXX) addresses. "
+        "Use this for reverse lookup — e.g. 'which weaknesses does this control fix?' "
+        "Complements get_mitigations_for_weakness (forward direction)."
+    )
     Params = GetWeaknessesForMitigationParams
 
     async def invoke(self, params: GetWeaknessesForMitigationParams) -> str:
@@ -280,14 +370,18 @@ class GetWeaknessesForMitigationTool(SolveItBaseTool[GetWeaknessesForMitigationP
 class GetTechniquesForMitigationParams(ToolParams):
     """Parameters for get_techniques_for_mitigation tool."""
 
-    mitigation_id: str = Field(description="The ID of the mitigation")
+    mitigation_id: str = Field(description="The mitigation ID (e.g., DFM-1001)")
 
 
 class GetTechniquesForMitigationTool(SolveItBaseTool[GetTechniquesForMitigationParams]):
     """Tool to retrieve all techniques that reference a specific mitigation (through weaknesses)."""
 
     name = "get_techniques_for_mitigation"
-    description = "Retrieves all techniques that reference a specific SOLVE-IT mitigation ID (through weaknesses)."
+    description = (
+        "Find all techniques indirectly linked to a mitigation (DFM-XXXX) via their shared weaknesses. "
+        "Use this to understand the scope of impact of a control — "
+        "e.g. 'which techniques benefit from applying this mitigation?'"
+    )
     Params = GetTechniquesForMitigationParams
 
     async def invoke(self, params: GetTechniquesForMitigationParams) -> str:
@@ -304,14 +398,13 @@ class GetTechniquesForMitigationTool(SolveItBaseTool[GetTechniquesForMitigationP
 
 
 # =============================================================================
-# HIGH PRIORITY TOOLS - Objective/Mapping Management
+# Objective / Mapping Tools
 # =============================================================================
 
 
 class ListObjectivesParams(ToolParams):
     """Parameters for list_objectives tool."""
 
-    # No parameters needed for this tool
     pass
 
 
@@ -319,7 +412,12 @@ class ListObjectivesTool(SolveItBaseTool[ListObjectivesParams]):
     """Tool to list all objectives from the current mapping."""
 
     name = "list_objectives"
-    description = "Lists all objectives from the current SOLVE-IT objective mapping."
+    description = (
+        "List all investigation objectives (workflow phases) from the currently loaded mapping. "
+        "Objectives group techniques by investigation goal — e.g. 'Acquire data', 'Preserve digital evidence'. "
+        "Use get_techniques_for_objective to get the techniques under a specific objective. "
+        "Use load_objective_mapping to switch between frameworks (solve-it, carrier, dfrws)."
+    )
     Params = ListObjectivesParams
 
     async def invoke(self, params: ListObjectivesParams) -> str:
@@ -336,14 +434,18 @@ class ListObjectivesTool(SolveItBaseTool[ListObjectivesParams]):
 class GetTechniquesForObjectiveParams(ToolParams):
     """Parameters for get_techniques_for_objective tool."""
 
-    objective_name: str = Field(description="The name of the objective")
+    objective_name: str = Field(description="The exact name of the objective (e.g., 'Acquire data')")
 
 
 class GetTechniquesForObjectiveTool(SolveItBaseTool[GetTechniquesForObjectiveParams]):
     """Tool to retrieve all techniques for a specific objective."""
 
     name = "get_techniques_for_objective"
-    description = "Retrieves all techniques associated with a specific SOLVE-IT objective name."
+    description = (
+        "Get all techniques belonging to a specific investigation objective (workflow phase). "
+        "Use list_objectives first to get the exact objective names. "
+        "Use this to answer 'what techniques are available for this phase of the investigation?'"
+    )
     Params = GetTechniquesForObjectiveParams
 
     async def invoke(self, params: GetTechniquesForObjectiveParams) -> str:
@@ -359,10 +461,40 @@ class GetTechniquesForObjectiveTool(SolveItBaseTool[GetTechniquesForObjectivePar
             )
 
 
+class GetObjectivesForTechniqueParams(ToolParams):
+    """Parameters for get_objectives_for_technique tool."""
+
+    technique_id: str = Field(description="The technique ID (e.g., DFT-1001)")
+
+
+class GetObjectivesForTechniqueTool(SolveItBaseTool[GetObjectivesForTechniqueParams]):
+    """Tool to retrieve all objectives that contain a specific technique."""
+
+    name = "get_objectives_for_technique"
+    description = (
+        "Find which investigation objectives (workflow phases) a technique belongs to. "
+        "Use this for reverse lookup — e.g. 'at what stage of an investigation is this technique used?' "
+        "Also handles subtechniques by returning the parent technique's objectives. "
+        "Complements get_techniques_for_objective (forward direction)."
+    )
+    Params = GetObjectivesForTechniqueParams
+
+    async def invoke(self, params: GetObjectivesForTechniqueParams) -> str:
+        """Get objectives for a technique."""
+        try:
+            objectives = self.knowledge_base.get_objectives_for_technique(params.technique_id)
+
+            return json.dumps(objectives, indent=2)
+
+        except Exception as e:
+            return self.handle_knowledge_base_error(
+                e, f"objectives for technique {params.technique_id}"
+            )
+
+
 class ListAvailableMappingsParams(ToolParams):
     """Parameters for list_available_mappings tool."""
 
-    # No parameters needed for this tool
     pass
 
 
@@ -371,7 +503,10 @@ class ListAvailableMappingsTool(SolveItBaseTool[ListAvailableMappingsParams]):
 
     name = "list_available_mappings"
     description = (
-        "Lists all available SOLVE-IT objective mapping files (solve-it.json, carrier.json, etc.)."
+        "List all available objective mapping files. "
+        "Each mapping organises the same techniques into different investigation frameworks: "
+        "solve-it.json (default SOLVE-IT framework), carrier.json (carrier/network context), "
+        "dfrws.json (DFRWS framework). Use load_objective_mapping to switch between them."
     )
     Params = ListAvailableMappingsParams
 
@@ -389,14 +524,21 @@ class ListAvailableMappingsTool(SolveItBaseTool[ListAvailableMappingsParams]):
 class LoadObjectiveMappingParams(ToolParams):
     """Parameters for load_objective_mapping tool."""
 
-    filename: str = Field(description="The filename of the mapping to load (e.g., 'carrier.json')")
+    filename: str = Field(
+        description="Mapping filename to load (e.g., 'carrier.json', 'dfrws.json', 'solve-it.json')"
+    )
 
 
 class LoadObjectiveMappingTool(SolveItBaseTool[LoadObjectiveMappingParams]):
     """Tool to switch to a different objective mapping."""
 
     name = "load_objective_mapping"
-    description = "Switches to a different SOLVE-IT objective mapping file."
+    description = (
+        "Switch to a different investigation framework mapping. "
+        "Use list_available_mappings to see valid filenames. "
+        "After loading, list_objectives and get_techniques_for_objective will reflect the new framework. "
+        "Use this when the user asks about techniques in the context of a specific framework (carrier, dfrws)."
+    )
     Params = LoadObjectiveMappingParams
 
     async def invoke(self, params: LoadObjectiveMappingParams) -> str:
@@ -424,14 +566,13 @@ class LoadObjectiveMappingTool(SolveItBaseTool[LoadObjectiveMappingParams]):
 
 
 # =============================================================================
-# MEDIUM PRIORITY TOOLS - Bulk Retrieval (Concise Format)
+# Bulk Retrieval Tools
 # =============================================================================
 
 
 class GetAllTechniquesWithNameAndIdParams(ToolParams):
     """Parameters for get_all_techniques_with_name_and_id tool."""
 
-    # No parameters needed for this tool
     pass
 
 
@@ -439,7 +580,11 @@ class GetAllTechniquesWithNameAndIdTool(SolveItBaseTool[GetAllTechniquesWithName
     """Tool to retrieve all techniques with ID and name only."""
 
     name = "get_all_techniques_with_name_and_id"
-    description = "Retrieves all SOLVE-IT techniques with ID and name only (concise format)."
+    description = (
+        "Get all techniques as a concise ID+name list (~180 entries). "
+        "Use this to browse the full catalogue or find IDs before calling get_technique_details. "
+        "Prefer search when you have keywords — this returns everything."
+    )
     Params = GetAllTechniquesWithNameAndIdParams
 
     async def invoke(self, params: GetAllTechniquesWithNameAndIdParams) -> str:
@@ -456,7 +601,6 @@ class GetAllTechniquesWithNameAndIdTool(SolveItBaseTool[GetAllTechniquesWithName
 class GetAllWeaknessesWithNameAndIdParams(ToolParams):
     """Parameters for get_all_weaknesses_with_name_and_id tool."""
 
-    # No parameters needed for this tool
     pass
 
 
@@ -464,7 +608,11 @@ class GetAllWeaknessesWithNameAndIdTool(SolveItBaseTool[GetAllWeaknessesWithName
     """Tool to retrieve all weaknesses with ID and name only."""
 
     name = "get_all_weaknesses_with_name_and_id"
-    description = "Retrieves all SOLVE-IT weaknesses with ID and name only (concise format)."
+    description = (
+        "Get all weaknesses as a concise ID+name list. "
+        "Use this to browse all known weaknesses or find IDs before calling get_weakness_details. "
+        "Prefer search when you have keywords — this returns everything."
+    )
     Params = GetAllWeaknessesWithNameAndIdParams
 
     async def invoke(self, params: GetAllWeaknessesWithNameAndIdParams) -> str:
@@ -481,7 +629,6 @@ class GetAllWeaknessesWithNameAndIdTool(SolveItBaseTool[GetAllWeaknessesWithName
 class GetAllMitigationsWithNameAndIdParams(ToolParams):
     """Parameters for get_all_mitigations_with_name_and_id tool."""
 
-    # No parameters needed for this tool
     pass
 
 
@@ -489,7 +636,11 @@ class GetAllMitigationsWithNameAndIdTool(SolveItBaseTool[GetAllMitigationsWithNa
     """Tool to retrieve all mitigations with ID and name only."""
 
     name = "get_all_mitigations_with_name_and_id"
-    description = "Retrieves all SOLVE-IT mitigations with ID and name only (concise format)."
+    description = (
+        "Get all mitigations as a concise ID+name list. "
+        "Use this to browse all available mitigations or find IDs before calling get_mitigation_details. "
+        "Prefer search when you have keywords — this returns everything."
+    )
     Params = GetAllMitigationsWithNameAndIdParams
 
     async def invoke(self, params: GetAllMitigationsWithNameAndIdParams) -> str:
@@ -503,15 +654,9 @@ class GetAllMitigationsWithNameAndIdTool(SolveItBaseTool[GetAllMitigationsWithNa
             return self.handle_knowledge_base_error(e, "all mitigations with name and ID")
 
 
-# =============================================================================
-# MEDIUM PRIORITY TOOLS - Bulk Retrieval (Full Detail Format)
-# =============================================================================
-
-
 class GetAllTechniquesWithFullDetailParams(ToolParams):
     """Parameters for get_all_techniques_with_full_detail tool."""
 
-    # No parameters needed for this tool
     pass
 
 
@@ -519,7 +664,11 @@ class GetAllTechniquesWithFullDetailTool(SolveItBaseTool[GetAllTechniquesWithFul
     """Tool to retrieve all techniques with complete details."""
 
     name = "get_all_techniques_with_full_detail"
-    description = "Retrieves all SOLVE-IT techniques with complete details. Warning: May return large amounts of data."
+    description = (
+        "Get all techniques with complete details (large response — use sparingly). "
+        "Only use this when you need the full dataset in one call. "
+        "For targeted lookups use search + get_technique_details instead."
+    )
     Params = GetAllTechniquesWithFullDetailParams
 
     async def invoke(self, params: GetAllTechniquesWithFullDetailParams) -> str:
@@ -536,7 +685,6 @@ class GetAllTechniquesWithFullDetailTool(SolveItBaseTool[GetAllTechniquesWithFul
 class GetAllWeaknessesWithFullDetailParams(ToolParams):
     """Parameters for get_all_weaknesses_with_full_detail tool."""
 
-    # No parameters needed for this tool
     pass
 
 
@@ -544,7 +692,11 @@ class GetAllWeaknessesWithFullDetailTool(SolveItBaseTool[GetAllWeaknessesWithFul
     """Tool to retrieve all weaknesses with complete details."""
 
     name = "get_all_weaknesses_with_full_detail"
-    description = "Retrieves all SOLVE-IT weaknesses with complete details. Warning: May return large amounts of data."
+    description = (
+        "Get all weaknesses with complete details (large response — use sparingly). "
+        "Only use this when you need the full dataset in one call. "
+        "For targeted lookups use search + get_weakness_details instead."
+    )
     Params = GetAllWeaknessesWithFullDetailParams
 
     async def invoke(self, params: GetAllWeaknessesWithFullDetailParams) -> str:
@@ -561,7 +713,6 @@ class GetAllWeaknessesWithFullDetailTool(SolveItBaseTool[GetAllWeaknessesWithFul
 class GetAllMitigationsWithFullDetailParams(ToolParams):
     """Parameters for get_all_mitigations_with_full_detail tool."""
 
-    # No parameters needed for this tool
     pass
 
 
@@ -569,7 +720,11 @@ class GetAllMitigationsWithFullDetailTool(SolveItBaseTool[GetAllMitigationsWithF
     """Tool to retrieve all mitigations with complete details."""
 
     name = "get_all_mitigations_with_full_detail"
-    description = "Retrieves all SOLVE-IT mitigations with complete details. Warning: May return large amounts of data."
+    description = (
+        "Get all mitigations with complete details (large response — use sparingly). "
+        "Only use this when you need the full dataset in one call. "
+        "For targeted lookups use search + get_mitigation_details instead."
+    )
     Params = GetAllMitigationsWithFullDetailParams
 
     async def invoke(self, params: GetAllMitigationsWithFullDetailParams) -> str:

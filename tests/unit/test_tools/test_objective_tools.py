@@ -25,7 +25,7 @@ class TestListObjectivesTool:
         tool = ListObjectivesTool()
 
         assert tool.name == "list_objectives"
-        assert "objectives from the current" in tool.description.lower()
+        assert "objectives" in tool.description.lower() and "currently" in tool.description.lower()
         assert tool.Params == ListObjectivesParams
 
     @pytest.mark.asyncio
@@ -79,7 +79,7 @@ class TestGetTechniquesForObjectiveTool:
         tool = GetTechniquesForObjectiveTool()
 
         assert tool.name == "get_techniques_for_objective"
-        assert "techniques associated with" in tool.description.lower()
+        assert "techniques" in tool.description.lower()
         assert tool.Params == GetTechniquesForObjectiveParams
 
     @pytest.mark.asyncio
@@ -190,7 +190,7 @@ class TestLoadObjectiveMappingTool:
         tool = LoadObjectiveMappingTool()
 
         assert tool.name == "load_objective_mapping"
-        assert "switches to a different" in tool.description.lower()
+        assert "switch to a different" in tool.description.lower()
         assert tool.Params == LoadObjectiveMappingParams
 
     @pytest.mark.asyncio

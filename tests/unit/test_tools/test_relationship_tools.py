@@ -27,7 +27,7 @@ class TestGetWeaknessesForTechniqueTool:
         tool = GetWeaknessesForTechniqueTool()
 
         assert tool.name == "get_weaknesses_for_technique"
-        assert "weaknesses associated with" in tool.description.lower()
+        assert "weaknesses" in tool.description.lower()
         assert tool.Params == GetWeaknessesForTechniqueParams
 
     @pytest.mark.asyncio
@@ -81,7 +81,7 @@ class TestGetMitigationsForWeaknessTool:
         tool = GetMitigationsForWeaknessTool()
 
         assert tool.name == "get_mitigations_for_weakness"
-        assert "mitigations associated with" in tool.description.lower()
+        assert "mitigations" in tool.description.lower()
         assert tool.Params == GetMitigationsForWeaknessParams
 
     @pytest.mark.asyncio
@@ -135,7 +135,7 @@ class TestGetTechniquesForWeaknessTool:
         tool = GetTechniquesForWeaknessTool()
 
         assert tool.name == "get_techniques_for_weakness"
-        assert "techniques that reference" in tool.description.lower()
+        assert "techniques" in tool.description.lower()
         assert tool.Params == GetTechniquesForWeaknessParams
 
     @pytest.mark.asyncio
@@ -189,7 +189,7 @@ class TestGetWeaknessesForMitigationTool:
         tool = GetWeaknessesForMitigationTool()
 
         assert tool.name == "get_weaknesses_for_mitigation"
-        assert "weaknesses that reference" in tool.description.lower()
+        assert "weaknesses" in tool.description.lower()
         assert tool.Params == GetWeaknessesForMitigationParams
 
     @pytest.mark.asyncio
@@ -243,7 +243,7 @@ class TestGetTechniquesForMitigationTool:
         tool = GetTechniquesForMitigationTool()
 
         assert tool.name == "get_techniques_for_mitigation"
-        assert "techniques that reference" in tool.description.lower()
+        assert "techniques" in tool.description.lower()
         assert tool.Params == GetTechniquesForMitigationParams
 
     @pytest.mark.asyncio
