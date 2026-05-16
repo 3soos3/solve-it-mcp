@@ -1,16 +1,18 @@
+# syntax=docker/dockerfile:1.4
 # Production Dockerfile for SOLVE-IT MCP Server - Alpine Linux
 # Multi-stage build for minimal image size and maximum security
 # Supports multi-architecture: linux/amd64, linux/arm64, linux/arm/v7
-# Base: Alpine Linux (musl libc) for smallest attack surface
 
 # ============================================================================
 # Stage 1: Builder
 # ============================================================================
 FROM python:3.12-alpine AS builder
 
-# Install system dependencies needed for building Python packages
-# Alpine uses apk instead of apt-get
-RUN apk add --no-cache \
+# Build args
+ARG SOLVE_IT_VERSION=main
+
+# Install build dependencies (will be removed in same layer)
+RUN apk add --no-cache --virtual .build-deps \
     build-base \
     libffi-dev \
     openssl-dev \
@@ -18,19 +20,33 @@ RUN apk add --no-cache \
     cargo \
     rust
 
-# Create virtual environment for isolated dependency management
+# Create virtual environment
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy requirements file
+# Copy pyproject.toml and README for pip install
 WORKDIR /build
-COPY requirements.txt .
+COPY pyproject.toml README.md ./
 
-# Install only production dependencies (exclude dev tools)
-# We filter out pytest, mypy, black, ruff from requirements.txt
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    sed -E '/^(pytest|mypy|black|ruff)/d' requirements.txt > requirements.prod.txt && \
-    pip install --no-cache-dir -r requirements.prod.txt
+# Fetch SOLVE-IT data
+RUN git clone --depth 1 --branch ${SOLVE_IT_VERSION} \
+    https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it-main && \
+    rm -rf /tmp/solve-it-main/.git
+
+# Install all dependencies (app + solve-it library), then clean up
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir . && \
+    grep -v '^\s*pytest' /tmp/solve-it-main/requirements.txt | \
+        pip install --no-cache-dir -r /dev/stdin && \
+    # Cleanup to reduce venv size
+    pip uninstall -y pip setuptools wheel && \
+    find /opt/venv -type f -name '*.pyc' -delete && \
+    find /opt/venv -type f -name '*.pyo' -delete && \
+    find /opt/venv -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+
+# Remove build dependencies
+RUN apk del .build-deps
 
 # ============================================================================
 # Stage 2: Runtime
@@ -38,12 +54,9 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
 FROM python:3.12-alpine AS runtime
 
 # Build arguments for flexibility
-ARG SOLVE_IT_SOURCE=github
-ARG SOLVE_IT_VERSION=main
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=stable
-# Ensure BUILD_DATE is RFC3339 compliant, provide fallback if empty
 ARG BUILD_DATE_RFC3339=${BUILD_DATE:-1970-01-01T00:00:00Z}
 
 # Metadata labels following OCI Image Spec
@@ -58,18 +71,22 @@ LABEL org.opencontainers.image.created="${BUILD_DATE_RFC3339}" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.base.name="docker.io/library/python:3.12-alpine"
 
-# Install runtime system dependencies and create non-root user
-# Alpine uses apk instead of apt-get
+# Install minimal runtime dependencies and create non-root user
+# Removed: git (only needed in builder), curl (use wget instead)
 RUN apk add --no-cache \
-        git \
-        curl \
         ca-certificates \
         libffi \
         openssl && \
-    # Create non-root user for security \
-    # Alpine uses addgroup/adduser instead of groupadd/useradd \
+    # Create non-root user for security
     addgroup -g 1000 mcpuser && \
-    adduser -D -u 1000 -G mcpuser -h /home/mcpuser -s /bin/sh mcpuser
+    adduser -D -u 1000 -G mcpuser -h /home/mcpuser -s /bin/sh mcpuser && \
+    # Security hardening
+    chmod 750 /home/mcpuser && \
+    # Create tmp directories for runtime
+    mkdir -p /tmp/app-cache /tmp/app-tmp && \
+    chown -R mcpuser:mcpuser /tmp/app-cache /tmp/app-tmp && \
+    # Clean apk cache
+    rm -rf /var/cache/apk/*
 
 # Set working directory
 WORKDIR /app
@@ -81,27 +98,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application source code
 COPY --chown=mcpuser:mcpuser src/ /app/src/
 
-# Fetch SOLVE-IT knowledge base data and set ownership
-# Two options based on SOLVE_IT_SOURCE build arg:
-# 1. github (default): Clone from GitHub repository
-# 2. local: Copy from local build context (requires solve-it-main/ directory)
-RUN if [ "$SOLVE_IT_SOURCE" = "github" ]; then \
-        echo "Cloning SOLVE-IT data from GitHub..."; \
-        git clone --depth 1 --branch ${SOLVE_IT_VERSION} \
-            https://github.com/SOLVE-IT-DF/solve-it.git /app/solve-it-main && \
-        rm -rf /app/solve-it-main/.git; \
-    else \
-        echo "SOLVE-IT data will be copied from local context"; \
-        mkdir -p /app/solve-it-main; \
-    fi && \
-    # Set ownership of all app files to non-root user \
-    chown -R mcpuser:mcpuser /app
-
-# Copy local SOLVE-IT data if building with SOLVE_IT_SOURCE=local
-# Note: This step is only used when SOLVE_IT_SOURCE=local (requires solve-it-main/ in build context)
-# For github mode (default), data is already cloned in previous step
-# Commented out to avoid Podman build issues - uncomment if using local SOLVE-IT data
-# COPY --chown=mcpuser:mcpuser solve-it-main/ /app/solve-it-main/
+# Copy SOLVE-IT data from builder stage (no git in runtime)
+COPY --from=builder --chown=mcpuser:mcpuser /tmp/solve-it-main /app/solve-it-main
 
 # Switch to non-root user
 USER mcpuser
@@ -117,22 +115,19 @@ ENV PYTHONPATH=/app/src \
     OTEL_ENABLED=true \
     ENVIRONMENT=production \
     LOG_LEVEL=INFO \
-    LOG_FORMAT=json
+    LOG_FORMAT=json \
+    TMPDIR=/tmp/app-tmp
 
 # Expose HTTP port (default 8000, configurable via HTTP_PORT)
 EXPOSE 8000
 
-# Health check for HTTP mode (liveness probe using Kubernetes standard /healthz)
-# Checks every 30s, timeout 3s, start after 10s, 3 retries before unhealthy
+# Health check using wget (built into Alpine, no curl needed)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD if [ "$MCP_TRANSPORT" = "http" ]; then \
-            curl -f http://localhost:${HTTP_PORT}/healthz || exit 1; \
+            wget --no-verbose --tries=1 --spider http://localhost:${HTTP_PORT}/healthz || exit 1; \
         else \
             exit 0; \
         fi
 
 # Start the server
-# Transport mode is controlled by MCP_TRANSPORT environment variable
-# - http: HTTP/SSE transport for Kubernetes deployments
-# - stdio: STDIO transport for MCP client connections
 CMD ["sh", "-c", "python3 /app/src/server.py --transport ${MCP_TRANSPORT}"]

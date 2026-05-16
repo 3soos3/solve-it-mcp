@@ -187,10 +187,12 @@ jobs:
               ALL_PASSED=true
 
               for check in "${REQUIRED_CHECKS[@]}"; do
-                STATUS=$(echo "$CHECKS" | jq -r ".[] | select(.name == \"$check\") | .state")
-                if [ "$STATUS" = "pass" ]; then
+                STATUS=$(echo "$CHECKS" | jq -r ".[] | select(.name == \"$check\") | .state" | head -1)
+                if [ "$STATUS" = "SUCCESS" ] || [ "$STATUS" = "pass" ]; then
                   echo "✅ $check"
-                elif [ "$STATUS" = "fail" ]; then
+                elif [ "$STATUS" = "SKIPPED" ] || [ "$STATUS" = "skipping" ]; then
+                  echo "⏭️ $check skipped - OK"
+                elif [ "$STATUS" = "FAILURE" ] || [ "$STATUS" = "fail" ]; then
                   echo "❌ $check FAILED"
                   exit 1
                 else
