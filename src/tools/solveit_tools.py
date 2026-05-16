@@ -31,9 +31,9 @@ class GetDatabaseDescriptionTool(SolveItBaseTool[GetDatabaseDescriptionParams]):
                 "description": "A systematic digital forensics knowledge base inspired by MITRE ATT&CK",
                 "purpose": "Provides comprehensive mapping of digital forensic investigation techniques, weaknesses, and mitigations",
                 "components": {
-                    "techniques": "Digital forensic investigation methods (T1001, T1002, etc.)",
-                    "weaknesses": "Potential problems/limitations of techniques (W1001, W1002, etc.)",
-                    "mitigations": "Ways to address weaknesses (M1001, M1002, etc.)",
+                    "techniques": "Digital forensic investigation methods (DFT-1001, DFT-1002, etc.)",
+                    "weaknesses": "Potential problems/limitations of techniques (DFW-1001, DFW-1002, etc.)",
+                    "mitigations": "Ways to address weaknesses (DFM-1001, DFM-1002, etc.)",
                     "objectives": "Categories that organize techniques by investigation goals",
                 },
                 "statistics": stats,
@@ -86,7 +86,7 @@ class SearchTool(SolveItBaseTool[SearchParams]):
 class GetTechniqueDetailsParams(ToolParams):
     """Parameters for get_technique_details tool."""
 
-    technique_id: str = Field(description="The ID of the technique (e.g., T1002)")
+    technique_id: str = Field(description="The ID of the technique (e.g., DFT-1002)")
 
 
 class GetTechniqueDetailsTool(SolveItBaseTool[GetTechniqueDetailsParams]):
@@ -94,7 +94,7 @@ class GetTechniqueDetailsTool(SolveItBaseTool[GetTechniqueDetailsParams]):
 
     name = "get_technique_details"
     description = (
-        "Retrieves the full details for a specific SOLVE-IT technique by its ID (e.g., T1002)."
+        "Retrieves the full details for a specific SOLVE-IT technique by its ID (e.g., DFT-1002)."
     )
     Params = GetTechniqueDetailsParams
 
@@ -115,14 +115,14 @@ class GetTechniqueDetailsTool(SolveItBaseTool[GetTechniqueDetailsParams]):
 class GetWeaknessDetailsParams(ToolParams):
     """Parameters for get_weakness_details tool."""
 
-    weakness_id: str = Field(description="The ID of the weakness (e.g., W1001)")
+    weakness_id: str = Field(description="The ID of the weakness (e.g., DFW-1001)")
 
 
 class GetWeaknessDetailsTool(SolveItBaseTool[GetWeaknessDetailsParams]):
     """Tool to retrieve additional details for a specific SOLVE-IT weakness."""
 
     name = "get_weakness_details"
-    description = "Retrieves additional, optional details for a specific SOLVE-IT weakness by its ID (e.g., W1001). The 'name' field contains the primary description of what this weakness entails."
+    description = "Retrieves additional, optional details for a specific SOLVE-IT weakness by its ID (e.g., DFW-1001). The 'name' field contains the primary description of what this weakness entails."
     Params = GetWeaknessDetailsParams
 
     async def invoke(self, params: GetWeaknessDetailsParams) -> str:
@@ -142,14 +142,14 @@ class GetWeaknessDetailsTool(SolveItBaseTool[GetWeaknessDetailsParams]):
 class GetMitigationDetailsParams(ToolParams):
     """Parameters for get_mitigation_details tool."""
 
-    mitigation_id: str = Field(description="The ID of the mitigation (e.g., M1001)")
+    mitigation_id: str = Field(description="The ID of the mitigation (e.g., DFM-1001)")
 
 
 class GetMitigationDetailsTool(SolveItBaseTool[GetMitigationDetailsParams]):
     """Tool to retrieve additional details for a specific SOLVE-IT mitigation."""
 
     name = "get_mitigation_details"
-    description = "Retrieves additional, optional details for a specific SOLVE-IT mitigation by its ID (e.g., M1001). The 'name' field contains the primary description of what this mitigation entails."
+    description = "Retrieves additional, optional details for a specific SOLVE-IT mitigation by its ID (e.g., DFM-1001). The 'name' field contains the primary description of what this mitigation entails."
     Params = GetMitigationDetailsParams
 
     async def invoke(self, params: GetMitigationDetailsParams) -> str:

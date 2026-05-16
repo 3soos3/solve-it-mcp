@@ -104,7 +104,7 @@ class MCPMetrics:
         ...     duration_ms=23.5,
         ...     input_size=128,
         ...     output_size=4096,
-        ...     attributes={"technique_id": "T1001"}
+        ...     attributes={"technique_id": "DFT-1001"}
         ... )
 
         Record error:
@@ -511,7 +511,7 @@ class MCPMetrics:
             ...     duration_ms=23.5,
             ...     input_size=128,
             ...     output_size=4096,
-            ...     attributes={"technique_id": "T1001", "correlation_id": "req_abc"}
+            ...     attributes={"technique_id": "DFT-1001", "correlation_id": "req_abc"}
             ... )
 
             Record error case:

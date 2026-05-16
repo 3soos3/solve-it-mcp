@@ -69,7 +69,7 @@ curl -X POST http://localhost:8000/mcp/v1/messages \
     "params": {
       "name": "get_technique_details",
       "arguments": {
-        "technique_id": "T1042"
+        "technique_id": "DFT-1042"
       }
     }
   }'
@@ -85,7 +85,7 @@ curl -X POST http://localhost:8000/mcp/v1/messages \
     "params": {
       "name": "get_weaknesses_for_technique",
       "arguments": {
-        "technique_id": "T1042"
+        "technique_id": "DFT-1042"
       }
     }
   }'
@@ -101,7 +101,7 @@ curl -X POST http://localhost:8000/mcp/v1/messages \
     "params": {
       "name": "get_mitigations_for_weakness",
       "arguments": {
-        "weakness_id": "W1015"
+        "weakness_id": "DFW-1015"
       }
     }
   }'
@@ -123,18 +123,18 @@ curl -X POST http://localhost:8000/mcp/v1/messages \
 ```markdown
 ## Investigation Methodology
 
-### Technique: Network Traffic Analysis (T1023)
+### Technique: Network Traffic Analysis (DFT-1023)
 
 **Purpose**: Identify suspicious network communications
 
 **Weaknesses Considered**:
-- W1008: Encrypted traffic may not be fully analyzable
-- W1012: Incomplete packet capture due to network tap limitations
+- DFW-1008: Encrypted traffic may not be fully analyzable
+- DFW-1012: Incomplete packet capture due to network tap limitations
 
 **Mitigations Applied**:
-- M1004: Captured full packet headers and metadata
-- M1009: Cross-referenced with firewall logs for context
-- M1015: Documented capture timestamps and chain of custody
+- DFM-1004: Captured full packet headers and metadata
+- DFM-1009: Cross-referenced with firewall logs for context
+- DFM-1015: Documented capture timestamps and chain of custody
 
 **Justification**: Despite acknowledged limitations, this technique
 provided crucial evidence of C2 communication patterns that
@@ -233,9 +233,9 @@ For interactive analysis during investigations:
 
 **Example Output for Court**:
 
-> "The investigation employed SOLVE-IT Technique T1055 (Disk Imaging) 
-> with documented awareness of Weakness W1032 (potential for hardware 
-> read errors). Mitigation M1041 (verification hashing at multiple stages) 
+> "The investigation employed SOLVE-IT Technique DFT-1055 (Disk Imaging) 
+> with documented awareness of Weakness DFW-1032 (potential for hardware 
+> read errors). Mitigation DFM-1041 (verification hashing at multiple stages) 
 > was implemented to ensure data integrity throughout the imaging process."
 
 ### Use Case 2: Peer Review Preparation
@@ -349,7 +349,7 @@ services:
 
 ### Documentation
 
-1. **Reference Technique IDs** in your reports (e.g., "T1023: Network Traffic Analysis")
+1. **Reference Technique IDs** in your reports (e.g., "DFT-1023: Network Traffic Analysis")
 2. **Document weaknesses** you identified and considered
 3. **Justify mitigation choices** explicitly
 4. **Maintain consistency** across investigations
@@ -443,7 +443,7 @@ def generate_methodology_section(techniques):
     return report
 
 # Usage
-techniques_used = ["T1023", "T1042", "T1055"]
+techniques_used = ["DFT-1023", "DFT-1042", "DFT-1055"]
 methodology = generate_methodology_section(techniques_used)
 print(methodology)
 ```
@@ -455,7 +455,7 @@ print(methodology)
 # validate-investigation.sh
 # Validates that all techniques used have documented mitigations
 
-TECHNIQUES=("T1023" "T1042" "T1055")
+TECHNIQUES=("DFT-1023" "DFT-1042" "DFT-1055")
 
 for tech in "${TECHNIQUES[@]}"; do
     echo "Checking $tech..."

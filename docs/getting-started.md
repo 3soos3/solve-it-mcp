@@ -210,7 +210,7 @@ curl -X POST http://localhost:8000/mcp/v1/messages \
     "params": {
       "name": "get_technique_details",
       "arguments": {
-        "technique_id": "T1001"
+        "technique_id": "DFT-1001"
       }
     }
   }'
@@ -226,7 +226,7 @@ curl -X POST http://localhost:8000/mcp/v1/messages \
     "params": {
       "name": "get_weaknesses_for_technique",
       "arguments": {
-        "technique_id": "T1001"
+        "technique_id": "DFT-1001"
       }
     }
   }'
