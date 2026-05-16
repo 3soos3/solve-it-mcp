@@ -28,25 +28,24 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /build
 COPY pyproject.toml README.md ./
 
-# Install production dependencies only (from [project.dependencies])
-# Dev dependencies in [project.optional-dependencies] are not installed
+# Fetch SOLVE-IT data
+RUN git clone --depth 1 --branch ${SOLVE_IT_VERSION} \
+    https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it-main && \
+    rm -rf /tmp/solve-it-main/.git
+
+# Install all dependencies (app + solve-it library), then clean up
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir . && \
+    grep -v '^\s*pytest' /tmp/solve-it-main/requirements.txt | \
+        pip install --no-cache-dir -r /dev/stdin && \
     # Cleanup to reduce venv size
     pip uninstall -y pip setuptools wheel && \
     find /opt/venv -type f -name '*.pyc' -delete && \
     find /opt/venv -type f -name '*.pyo' -delete && \
     find /opt/venv -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
-# Fetch SOLVE-IT data and install its dependencies
-RUN git clone --depth 1 --branch ${SOLVE_IT_VERSION} \
-    https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it-main && \
-    rm -rf /tmp/solve-it-main/.git && \
-    grep -v '^\s*pytest' /tmp/solve-it-main/requirements.txt | \
-    pip install --no-cache-dir -r /dev/stdin
-
-# Remove build dependencies to clean builder cache
+# Remove build dependencies
 RUN apk del .build-deps
 
 # ============================================================================
