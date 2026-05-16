@@ -29,7 +29,7 @@ class TestGetAllTechniquesWithNameAndIdTool:
         tool = GetAllTechniquesWithNameAndIdTool()
 
         assert tool.name == "get_all_techniques_with_name_and_id"
-        assert "concise format" in tool.description.lower()
+        assert "concise" in tool.description.lower()
         assert tool.Params == GetAllTechniquesWithNameAndIdParams
 
     @pytest.mark.asyncio
@@ -87,7 +87,7 @@ class TestGetAllWeaknessesWithNameAndIdTool:
         tool = GetAllWeaknessesWithNameAndIdTool()
 
         assert tool.name == "get_all_weaknesses_with_name_and_id"
-        assert "concise format" in tool.description.lower()
+        assert "concise" in tool.description.lower()
         assert tool.Params == GetAllWeaknessesWithNameAndIdParams
 
     @pytest.mark.asyncio
@@ -145,7 +145,7 @@ class TestGetAllMitigationsWithNameAndIdTool:
         tool = GetAllMitigationsWithNameAndIdTool()
 
         assert tool.name == "get_all_mitigations_with_name_and_id"
-        assert "concise format" in tool.description.lower()
+        assert "concise" in tool.description.lower()
         assert tool.Params == GetAllMitigationsWithNameAndIdParams
 
     @pytest.mark.asyncio
@@ -204,7 +204,7 @@ class TestGetAllTechniquesWithFullDetailTool:
 
         assert tool.name == "get_all_techniques_with_full_detail"
         assert "complete details" in tool.description.lower()
-        assert "warning" in tool.description.lower()
+        assert "sparingly" in tool.description.lower()
         assert tool.Params == GetAllTechniquesWithFullDetailParams
 
     @pytest.mark.asyncio
@@ -263,7 +263,7 @@ class TestGetAllWeaknessesWithFullDetailTool:
 
         assert tool.name == "get_all_weaknesses_with_full_detail"
         assert "complete details" in tool.description.lower()
-        assert "warning" in tool.description.lower()
+        assert "sparingly" in tool.description.lower()
         assert tool.Params == GetAllWeaknessesWithFullDetailParams
 
     @pytest.mark.asyncio
@@ -322,7 +322,7 @@ class TestGetAllMitigationsWithFullDetailTool:
 
         assert tool.name == "get_all_mitigations_with_full_detail"
         assert "complete details" in tool.description.lower()
-        assert "warning" in tool.description.lower()
+        assert "sparingly" in tool.description.lower()
         assert tool.Params == GetAllMitigationsWithFullDetailParams
 
     @pytest.mark.asyncio
