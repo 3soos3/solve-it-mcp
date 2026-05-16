@@ -38,7 +38,7 @@ jobs:
       security: ${{ steps.filter.outputs.security }}
     steps:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
@@ -163,7 +163,7 @@ jobs:
 
       - name: Upload Hadolint results to GitHub Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3.24.6
+        uses: github/codeql-action/upload-sarif@v4.35.1
         with:
           sarif_file: hadolint.sarif
           category: hadolint
