@@ -225,9 +225,9 @@ async def test_call_tool_with_invalid_arguments(server_process, server_url):
 @pytest.mark.parametrize(
     "tool_name,arguments",
     [
-        ("get_technique_details", {"technique_id": "T1059"}),
+        ("get_technique_details", {"technique_id": "DFT-1059"}),
         ("get_weakness_details", {"weakness_id": "CWE-79"}),
-        ("get_mitigation_details", {"mitigation_id": "M1038"}),
+        ("get_mitigation_details", {"mitigation_id": "DFM-1038"}),
         ("list_objectives", {}),
     ],
 )

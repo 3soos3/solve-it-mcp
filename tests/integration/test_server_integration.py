@@ -70,7 +70,7 @@ class TestServerIntegration:
             details_tool = GetTechniqueDetailsTool()
             details_tool.knowledge_base = mock_solve_it_environment["knowledge_base"]
 
-            details_params = GetTechniqueDetailsParams(technique_id="T1001")
+            details_params = GetTechniqueDetailsParams(technique_id="DFT-1001")
             details_result = details_tool.invoke(details_params)
 
             # Verify workflow
@@ -97,14 +97,14 @@ class TestServerIntegration:
             weakness_tool = GetWeaknessesForTechniqueTool()
             weakness_tool.knowledge_base = mock_solve_it_environment["knowledge_base"]
 
-            weakness_params = GetWeaknessesForTechniqueParams(technique_id="T1001")
+            weakness_params = GetWeaknessesForTechniqueParams(technique_id="DFT-1001")
             weakness_result = weakness_tool.invoke(weakness_params)
 
             # Step 2: Get mitigations for weakness
             mitigation_tool = GetMitigationsForWeaknessTool()
             mitigation_tool.knowledge_base = mock_solve_it_environment["knowledge_base"]
 
-            mitigation_params = GetMitigationsForWeaknessParams(weakness_id="W1001")
+            mitigation_params = GetMitigationsForWeaknessParams(weakness_id="DFW-1001")
             mitigation_result = mitigation_tool.invoke(mitigation_params)
 
             # Verify workflow

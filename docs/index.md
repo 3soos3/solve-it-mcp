@@ -6,9 +6,9 @@ Welcome to the comprehensive documentation for the **SOLVE-IT MCP Server** - a p
 
 SOLVE-IT MCP Server is a production-ready implementation that exposes the entire SOLVE-IT digital forensics knowledge base through 20+ specialized tools. It enables Large Language Models (LLMs) to assist with digital forensics investigations by providing programmatic access to:
 
-- **Techniques** (T1001, T1002...): Digital forensic investigation methods
-- **Weaknesses** (W1001, W1002...): Potential problems/limitations of techniques
-- **Mitigations** (M1001, M1002...): Ways to address weaknesses
+- **Techniques** (DFT-1001, DFT-1002...): Digital forensic investigation methods
+- **Weaknesses** (DFW-1001, DFW-1002...): Potential problems/limitations of techniques
+- **Mitigations** (DFM-1001, DFM-1002...): Ways to address weaknesses
 - **Objectives**: Categories that organize techniques by investigation goals
 
 ## Quick Navigation

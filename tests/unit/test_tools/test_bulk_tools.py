@@ -51,9 +51,9 @@ class TestGetAllTechniquesWithNameAndIdTool:
 
             assert isinstance(data, list)
             assert len(data) == 2
-            assert data[0]["id"] == "T1001"
+            assert data[0]["id"] == "DFT-1001"
             assert data[0]["name"] == "Test Technique 1"
-            assert data[1]["id"] == "T1002"
+            assert data[1]["id"] == "DFT-1002"
             assert data[1]["name"] == "Test Technique 2"
 
             # Verify knowledge base method was called correctly
@@ -109,9 +109,9 @@ class TestGetAllWeaknessesWithNameAndIdTool:
 
             assert isinstance(data, list)
             assert len(data) == 2
-            assert data[0]["id"] == "W1001"
+            assert data[0]["id"] == "DFW-1001"
             assert data[0]["name"] == "Test Weakness 1"
-            assert data[1]["id"] == "W1002"
+            assert data[1]["id"] == "DFW-1002"
             assert data[1]["name"] == "Test Weakness 2"
 
             # Verify knowledge base method was called correctly
@@ -167,9 +167,9 @@ class TestGetAllMitigationsWithNameAndIdTool:
 
             assert isinstance(data, list)
             assert len(data) == 2
-            assert data[0]["id"] == "M1001"
+            assert data[0]["id"] == "DFM-1001"
             assert data[0]["name"] == "Test Mitigation 1"
-            assert data[1]["id"] == "M1002"
+            assert data[1]["id"] == "DFM-1002"
             assert data[1]["name"] == "Test Mitigation 2"
 
             # Verify knowledge base method was called correctly
@@ -226,7 +226,7 @@ class TestGetAllTechniquesWithFullDetailTool:
 
             assert isinstance(data, list)
             assert len(data) == 1
-            assert data[0]["id"] == "T1001"
+            assert data[0]["id"] == "DFT-1001"
             assert data[0]["name"] == "Test Technique"
             assert "description" in data[0]
             assert "weaknesses" in data[0]
@@ -285,7 +285,7 @@ class TestGetAllWeaknessesWithFullDetailTool:
 
             assert isinstance(data, list)
             assert len(data) == 1
-            assert data[0]["id"] == "W1001"
+            assert data[0]["id"] == "DFW-1001"
             assert data[0]["name"] == "Test Weakness"
             assert "description" in data[0]
             assert "mitigations" in data[0]
@@ -344,7 +344,7 @@ class TestGetAllMitigationsWithFullDetailTool:
 
             assert isinstance(data, list)
             assert len(data) == 1
-            assert data[0]["id"] == "M1001"
+            assert data[0]["id"] == "DFM-1001"
             assert data[0]["name"] == "Test Mitigation"
             assert "description" in data[0]
 

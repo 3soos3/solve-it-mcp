@@ -284,20 +284,20 @@ The SOLVE-IT knowledge base is organized as:
 
 ```
 SOLVE-IT Framework
-├── Techniques (T1001, T1002, ...)
+├── Techniques (DFT-1001, DFT-1002, ...)
 │   ├── ID
 │   ├── Name
 │   ├── Description
 │   ├── Procedure
 │   ├── Weaknesses (references)
 │   └── Objectives (references)
-├── Weaknesses (W1001, W1002, ...)
+├── Weaknesses (DFW-1001, DFW-1002, ...)
 │   ├── ID
 │   ├── Name
 │   ├── Description
 │   ├── Related Techniques
 │   └── Mitigations (references)
-└── Mitigations (M1001, M1002, ...)
+└── Mitigations (DFM-1001, DFM-1002, ...)
     ├── ID
     ├── Name
     ├── Description

@@ -14,21 +14,21 @@ def mock_knowledge_base():
 
     # Sample test data
     sample_technique = {
-        "id": "T1001",
+        "id": "DFT-1001",
         "name": "Test Technique",
         "description": "A test technique for unit testing",
-        "weaknesses": ["W1001", "W1002"],
+        "weaknesses": ["DFW-1001", "DFW-1002"],
     }
 
     sample_weakness = {
-        "id": "W1001",
+        "id": "DFW-1001",
         "name": "Test Weakness",
         "description": "A test weakness for unit testing",
-        "mitigations": ["M1001"],
+        "mitigations": ["DFM-1001"],
     }
 
     sample_mitigation = {
-        "id": "M1001",
+        "id": "DFM-1001",
         "name": "Test Mitigation",
         "description": "A test mitigation for unit testing",
     }
@@ -60,22 +60,22 @@ def mock_knowledge_base():
     mock_kb.current_mapping_name = "solve-it.json"
 
     # Mock list methods
-    mock_kb.list_techniques.return_value = ["T1001", "T1002"]
-    mock_kb.list_weaknesses.return_value = ["W1001", "W1002"]
-    mock_kb.list_mitigations.return_value = ["M1001", "M1002"]
+    mock_kb.list_techniques.return_value = ["DFT-1001", "DFT-1002"]
+    mock_kb.list_weaknesses.return_value = ["DFW-1001", "DFW-1002"]
+    mock_kb.list_mitigations.return_value = ["DFM-1001", "DFM-1002"]
 
     # Mock bulk retrieval methods
     mock_kb.get_all_techniques_with_name_and_id.return_value = [
-        {"id": "T1001", "name": "Test Technique 1"},
-        {"id": "T1002", "name": "Test Technique 2"},
+        {"id": "DFT-1001", "name": "Test Technique 1"},
+        {"id": "DFT-1002", "name": "Test Technique 2"},
     ]
     mock_kb.get_all_weaknesses_with_name_and_id.return_value = [
-        {"id": "W1001", "name": "Test Weakness 1"},
-        {"id": "W1002", "name": "Test Weakness 2"},
+        {"id": "DFW-1001", "name": "Test Weakness 1"},
+        {"id": "DFW-1002", "name": "Test Weakness 2"},
     ]
     mock_kb.get_all_mitigations_with_name_and_id.return_value = [
-        {"id": "M1001", "name": "Test Mitigation 1"},
-        {"id": "M1002", "name": "Test Mitigation 2"},
+        {"id": "DFM-1001", "name": "Test Mitigation 1"},
+        {"id": "DFM-1002", "name": "Test Mitigation 2"},
     ]
 
     # Mock full detail methods
@@ -95,10 +95,10 @@ def mock_data_path(tmp_path):
 
     # Create sample data files
     (data_dir / "solve-it.json").write_text(
-        json.dumps({"Test Objective 1": ["T1001"], "Test Objective 2": ["T1002"]})
+        json.dumps({"Test Objective 1": ["DFT-1001"], "Test Objective 2": ["DFT-1002"]})
     )
 
-    (data_dir / "carrier.json").write_text(json.dumps({"Carrier Objective": ["T1001", "T1002"]}))
+    (data_dir / "carrier.json").write_text(json.dumps({"Carrier Objective": ["DFT-1001", "DFT-1002"]}))
 
     return str(data_dir)
 
@@ -144,22 +144,22 @@ def sample_tool_responses():
             },
         },
         "search_results": {
-            "techniques": [{"id": "T1001", "name": "Test Technique"}],
-            "weaknesses": [{"id": "W1001", "name": "Test Weakness"}],
-            "mitigations": [{"id": "M1001", "name": "Test Mitigation"}],
+            "techniques": [{"id": "DFT-1001", "name": "Test Technique"}],
+            "weaknesses": [{"id": "DFW-1001", "name": "Test Weakness"}],
+            "mitigations": [{"id": "DFM-1001", "name": "Test Mitigation"}],
         },
         "technique_details": {
-            "id": "T1001",
+            "id": "DFT-1001",
             "name": "Test Technique",
             "description": "A test technique",
         },
         "weakness_details": {
-            "id": "W1001",
+            "id": "DFW-1001",
             "name": "Test Weakness",
             "description": "A test weakness",
         },
         "mitigation_details": {
-            "id": "M1001",
+            "id": "DFM-1001",
             "name": "Test Mitigation",
             "description": "A test mitigation",
         },

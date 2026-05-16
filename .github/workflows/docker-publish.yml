@@ -500,14 +500,14 @@ jobs:
           # Test technique query (validates SOLVE-IT data loaded)
           TECHNIQUE_RESULT=$(curl -s -X POST http://localhost:8000/mcp/v1/messages \
             -H "Content-Type: application/json" \
-            -d '{"method":"tools/call","params":{"name":"get_technique","arguments":{"technique_id":"T1001"}}}')
+            -d '{"method":"tools/call","params":{"name":"get_technique","arguments":{"technique_id":"DFT-1001"}}}')
 
           TECHNIQUE_ID=$(echo "$TECHNIQUE_RESULT" | jq -r '.result.id // empty')
 
-          if [ "$TECHNIQUE_ID" = "T1001" ]; then
+          if [ "$TECHNIQUE_ID" = "DFT-1001" ]; then
             echo "::notice::✅ SOLVE-IT data loaded correctly"
           else
-            echo "::error::Failed to query SOLVE-IT technique T1001"
+            echo "::error::Failed to query SOLVE-IT technique DFT-1001"
             echo "Response: $TECHNIQUE_RESULT"
             exit 1
           fi

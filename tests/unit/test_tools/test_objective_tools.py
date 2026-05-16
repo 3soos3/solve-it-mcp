@@ -101,7 +101,7 @@ class TestGetTechniquesForObjectiveTool:
 
             assert isinstance(data, list)
             assert len(data) > 0
-            assert data[0]["id"] == "T1001"
+            assert data[0]["id"] == "DFT-1001"
             assert data[0]["name"] == "Test Technique"
 
             # Verify knowledge base method was called correctly
@@ -296,7 +296,7 @@ class TestObjectiveToolsIntegration:
 
             techniques = validate_json_response(result2)
             assert len(techniques) > 0
-            assert techniques[0]["id"] == "T1001"
+            assert techniques[0]["id"] == "DFT-1001"
 
     @pytest.mark.asyncio
     async def test_mapping_workflow(self, mock_solve_it_environment):

@@ -86,31 +86,31 @@ class TestParameterValidation:
     def test_id_based_params_validation(self):
         """Test parameter classes that require ID parameters."""
         # Test technique ID parameters
-        params = GetTechniqueDetailsParams(technique_id="T1001")
-        assert params.technique_id == "T1001"
+        params = GetTechniqueDetailsParams(technique_id="DFT-1001")
+        assert params.technique_id == "DFT-1001"
 
-        params = GetWeaknessesForTechniqueParams(technique_id="T1002")
-        assert params.technique_id == "T1002"
+        params = GetWeaknessesForTechniqueParams(technique_id="DFT-1002")
+        assert params.technique_id == "DFT-1002"
 
         # Test weakness ID parameters
-        params = GetWeaknessDetailsParams(weakness_id="W1001")
-        assert params.weakness_id == "W1001"
+        params = GetWeaknessDetailsParams(weakness_id="DFW-1001")
+        assert params.weakness_id == "DFW-1001"
 
-        params = GetMitigationsForWeaknessParams(weakness_id="W1002")
-        assert params.weakness_id == "W1002"
+        params = GetMitigationsForWeaknessParams(weakness_id="DFW-1002")
+        assert params.weakness_id == "DFW-1002"
 
-        params = GetTechniquesForWeaknessParams(weakness_id="W1003")
-        assert params.weakness_id == "W1003"
+        params = GetTechniquesForWeaknessParams(weakness_id="DFW-1003")
+        assert params.weakness_id == "DFW-1003"
 
         # Test mitigation ID parameters
-        params = GetMitigationDetailsParams(mitigation_id="M1001")
-        assert params.mitigation_id == "M1001"
+        params = GetMitigationDetailsParams(mitigation_id="DFM-1001")
+        assert params.mitigation_id == "DFM-1001"
 
-        params = GetWeaknessesForMitigationParams(mitigation_id="M1002")
-        assert params.mitigation_id == "M1002"
+        params = GetWeaknessesForMitigationParams(mitigation_id="DFM-1002")
+        assert params.mitigation_id == "DFM-1002"
 
-        params = GetTechniquesForMitigationParams(mitigation_id="M1003")
-        assert params.mitigation_id == "M1003"
+        params = GetTechniquesForMitigationParams(mitigation_id="DFM-1003")
+        assert params.mitigation_id == "DFM-1003"
 
         # Test invalid cases - missing required parameters
         with pytest.raises(ValidationError):
@@ -182,12 +182,12 @@ class TestParameterValidation:
     def test_parameter_field_descriptions(self):
         """Test that parameter classes have proper field descriptions."""
         # Check that required fields have descriptions
-        params = GetTechniqueDetailsParams(technique_id="T1001")
+        params = GetTechniqueDetailsParams(technique_id="DFT-1001")
         schema = params.model_json_schema()
 
         assert "technique_id" in schema["properties"]
         assert "description" in schema["properties"]["technique_id"]
-        assert "T1002" in schema["properties"]["technique_id"]["description"]
+        assert "DFT-1002" in schema["properties"]["technique_id"]["description"]
 
         # Check SearchParams has descriptions
         params = SearchParams(keywords="test")
@@ -209,7 +209,7 @@ class TestParameterValidation:
         assert recreated.item_types == original.item_types
 
         # Test GetTechniqueDetailsParams
-        original = GetTechniqueDetailsParams(technique_id="T1001")
+        original = GetTechniqueDetailsParams(technique_id="DFT-1001")
         json_data = original.model_dump()
         recreated = GetTechniqueDetailsParams(**json_data)
 

@@ -180,18 +180,18 @@ class TestGetTechniqueDetailsTool:
             tool = GetTechniqueDetailsTool()
             tool.knowledge_base = mock_solve_it_environment["knowledge_base"]
 
-            params = GetTechniqueDetailsParams(technique_id="T1001")
+            params = GetTechniqueDetailsParams(technique_id="DFT-1001")
             result = await tool.invoke(params)
 
             # Validate JSON response
             data = validate_json_response(result)
 
-            assert data["id"] == "T1001"
+            assert data["id"] == "DFT-1001"
             assert data["name"] == "Test Technique"
             assert "description" in data
 
             # Verify knowledge base method was called correctly
-            tool.knowledge_base.get_technique.assert_called_once_with("T1001")
+            tool.knowledge_base.get_technique.assert_called_once_with("DFT-1001")
 
     @pytest.mark.asyncio
     async def test_technique_not_found(self, mock_solve_it_environment):
@@ -205,10 +205,10 @@ class TestGetTechniqueDetailsTool:
             tool.knowledge_base = MagicMock()
             tool.knowledge_base.get_technique.return_value = None
 
-            params = GetTechniqueDetailsParams(technique_id="T9999")
+            params = GetTechniqueDetailsParams(technique_id="DFT-9999")
             result = await tool.invoke(params)
 
-            assert "T9999 not found" in result
+            assert "DFT-9999 not found" in result
 
     @pytest.mark.asyncio
     async def test_technique_error_handling(self, mock_solve_it_environment):
@@ -222,7 +222,7 @@ class TestGetTechniqueDetailsTool:
             tool.knowledge_base = MagicMock()
             tool.knowledge_base.get_technique.side_effect = Exception("Technique error")
 
-            params = GetTechniqueDetailsParams(technique_id="T1001")
+            params = GetTechniqueDetailsParams(technique_id="DFT-1001")
             result = await tool.invoke(params)
 
             assert_error_response(result, "error")
@@ -250,18 +250,18 @@ class TestGetWeaknessDetailsTool:
             tool = GetWeaknessDetailsTool()
             tool.knowledge_base = mock_solve_it_environment["knowledge_base"]
 
-            params = GetWeaknessDetailsParams(weakness_id="W1001")
+            params = GetWeaknessDetailsParams(weakness_id="DFW-1001")
             result = await tool.invoke(params)
 
             # Validate JSON response
             data = validate_json_response(result)
 
-            assert data["id"] == "W1001"
+            assert data["id"] == "DFW-1001"
             assert data["name"] == "Test Weakness"
             assert "description" in data
 
             # Verify knowledge base method was called correctly
-            tool.knowledge_base.get_weakness.assert_called_once_with("W1001")
+            tool.knowledge_base.get_weakness.assert_called_once_with("DFW-1001")
 
     @pytest.mark.asyncio
     async def test_weakness_not_found(self, mock_solve_it_environment):
@@ -275,10 +275,10 @@ class TestGetWeaknessDetailsTool:
             tool.knowledge_base = MagicMock()
             tool.knowledge_base.get_weakness.return_value = None
 
-            params = GetWeaknessDetailsParams(weakness_id="W9999")
+            params = GetWeaknessDetailsParams(weakness_id="DFW-9999")
             result = await tool.invoke(params)
 
-            assert "W9999 not found" in result
+            assert "DFW-9999 not found" in result
 
     @pytest.mark.asyncio
     async def test_weakness_error_handling(self, mock_solve_it_environment):
@@ -292,7 +292,7 @@ class TestGetWeaknessDetailsTool:
             tool.knowledge_base = MagicMock()
             tool.knowledge_base.get_weakness.side_effect = Exception("Weakness error")
 
-            params = GetWeaknessDetailsParams(weakness_id="W1001")
+            params = GetWeaknessDetailsParams(weakness_id="DFW-1001")
             result = await tool.invoke(params)
 
             assert_error_response(result, "error")
@@ -320,18 +320,18 @@ class TestGetMitigationDetailsTool:
             tool = GetMitigationDetailsTool()
             tool.knowledge_base = mock_solve_it_environment["knowledge_base"]
 
-            params = GetMitigationDetailsParams(mitigation_id="M1001")
+            params = GetMitigationDetailsParams(mitigation_id="DFM-1001")
             result = await tool.invoke(params)
 
             # Validate JSON response
             data = validate_json_response(result)
 
-            assert data["id"] == "M1001"
+            assert data["id"] == "DFM-1001"
             assert data["name"] == "Test Mitigation"
             assert "description" in data
 
             # Verify knowledge base method was called correctly
-            tool.knowledge_base.get_mitigation.assert_called_once_with("M1001")
+            tool.knowledge_base.get_mitigation.assert_called_once_with("DFM-1001")
 
     @pytest.mark.asyncio
     async def test_mitigation_not_found(self, mock_solve_it_environment):
@@ -345,10 +345,10 @@ class TestGetMitigationDetailsTool:
             tool.knowledge_base = MagicMock()
             tool.knowledge_base.get_mitigation.return_value = None
 
-            params = GetMitigationDetailsParams(mitigation_id="M9999")
+            params = GetMitigationDetailsParams(mitigation_id="DFM-9999")
             result = await tool.invoke(params)
 
-            assert "M9999 not found" in result
+            assert "DFM-9999 not found" in result
 
     @pytest.mark.asyncio
     async def test_mitigation_error_handling(self, mock_solve_it_environment):
@@ -362,7 +362,7 @@ class TestGetMitigationDetailsTool:
             tool.knowledge_base = MagicMock()
             tool.knowledge_base.get_mitigation.side_effect = Exception("Mitigation error")
 
-            params = GetMitigationDetailsParams(mitigation_id="M1001")
+            params = GetMitigationDetailsParams(mitigation_id="DFM-1001")
             result = await tool.invoke(params)
 
             assert_error_response(result, "error")

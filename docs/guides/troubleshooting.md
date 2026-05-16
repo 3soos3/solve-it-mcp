@@ -191,7 +191,7 @@ export SOLVE_IT_DATA_PATH=/path/to/solve-it/data
 3. **Check ID format**:
    ```bash
    # Correct: Uppercase T, exact ID
-   {"technique_id": "T1001"}
+   {"technique_id": "DFT-1001"}
    
    # Wrong
    {"technique_id": "t1001"}  # Lowercase
