@@ -39,10 +39,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     find /opt/venv -type f -name '*.pyo' -delete && \
     find /opt/venv -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
-# Fetch SOLVE-IT data in builder stage (git removed from runtime)
+# Fetch SOLVE-IT data and install its dependencies
 RUN git clone --depth 1 --branch ${SOLVE_IT_VERSION} \
     https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it-main && \
-    rm -rf /tmp/solve-it-main/.git
+    rm -rf /tmp/solve-it-main/.git && \
+    grep -v '^\s*pytest' /tmp/solve-it-main/requirements.txt | \
+    pip install --no-cache-dir -r /dev/stdin
 
 # Remove build dependencies to clean builder cache
 RUN apk del .build-deps
