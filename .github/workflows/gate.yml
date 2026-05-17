@@ -37,6 +37,8 @@ jobs:
     uses: ./.github/workflows/reusable-python-test.yml
     permissions:
       contents: read
+    with:
+      test-path: tests/unit/
 
   # ── Static security ───────────────────────────────────────────────────────
   bandit:
