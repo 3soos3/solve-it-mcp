@@ -1,0 +1,137 @@
+name: Docker - Build & Publish release
+
+# Builds a pinned release image using an official SOLVE-IT release tag.
+# Rebuilds when a new SOLVE-IT official release exists that we haven't published,
+# or when MCP main SHA has changed since the last release image was built.
+# Naming: :<solve-it-release>-<mcp-version>  e.g. v0.2025-10-0.2025.10.0.1.0
+# All release tags are kept forever on both GHCR and Docker Hub.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'   # Every Monday 06:00 UTC (after :latest build)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force rebuild even if no new release detected'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  DOCKERHUB_REPO: 3soos3/solve-it-mcp
+  GHCR_REPO: ghcr.io/${{ github.repository_owner }}/solve-it-mcp
+  PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
+
+jobs:
+  check:
+    name: Check for new SOLVE-IT release
+    runs-on: ubuntu-latest
+    outputs:
+      rebuild: ${{ steps.decide.outputs.rebuild }}
+      mcp_sha: ${{ steps.decide.outputs.mcp_sha }}
+      mcp_version: ${{ steps.decide.outputs.mcp_version }}
+      solveit_release: ${{ steps.decide.outputs.solveit_release }}
+      image_tag: ${{ steps.decide.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Get latest SOLVE-IT release and MCP info
+        id: decide
+        run: |
+          MCP_SHA=$(git rev-parse --short HEAD)
+          MCP_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+
+          # Get latest official SOLVE-IT release tag
+          SOLVEIT_RELEASE=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest \
+            | jq -r '.tag_name // empty')
+
+          if [ -z "$SOLVEIT_RELEASE" ]; then
+            echo "::warning::Could not detect SOLVE-IT release, skipping"
+            echo "rebuild=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          IMAGE_TAG="${SOLVEIT_RELEASE}-${MCP_VERSION}"
+
+          echo "mcp_sha=${MCP_SHA}" >> $GITHUB_OUTPUT
+          echo "mcp_version=${MCP_VERSION}" >> $GITHUB_OUTPUT
+          echo "solveit_release=${SOLVEIT_RELEASE}" >> $GITHUB_OUTPUT
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+          # Check if this exact image tag already exists on GHCR
+          EXISTS=$(docker manifest inspect ${{ env.GHCR_REPO }}:${IMAGE_TAG} 2>/dev/null && echo "yes" || echo "no")
+
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "::notice::Force rebuild of ${IMAGE_TAG}"
+          elif [ "$EXISTS" = "no" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "::notice::New image tag ${IMAGE_TAG} does not exist, building"
+          else
+            echo "rebuild=false" >> $GITHUB_OUTPUT
+            echo "::notice::${IMAGE_TAG} already published, skipping"
+          fi
+
+  build:
+    name: Build & Publish release image
+    needs: check
+    if: needs.check.outputs.rebuild == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v5.1.0
+        with:
+          context: .
+          file: Dockerfile.release
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_REPO }}:${{ needs.check.outputs.image_tag }}
+            ${{ env.GHCR_REPO }}:${{ needs.check.outputs.image_tag }}
+          build-args: |
+            SOLVE_IT_VERSION=${{ needs.check.outputs.solveit_release }}
+            SOLVE_IT_RELEASE=${{ needs.check.outputs.solveit_release }}
+            MCP_VERSION=${{ needs.check.outputs.mcp_version }}
+            VCS_REF=${{ needs.check.outputs.mcp_sha }}
+            BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          labels: |
+            org.opencontainers.image.revision=${{ needs.check.outputs.mcp_sha }}
+            org.opencontainers.image.version=${{ needs.check.outputs.solveit_release }}
+          cache-from: type=gha,scope=release
+          cache-to: type=gha,mode=max,scope=release
+          provenance: true
+
+      - name: Summary
+        run: |
+          echo "## Release image published" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP SHA | \`${{ needs.check.outputs.mcp_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP Version | \`${{ needs.check.outputs.mcp_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| SOLVE-IT Release | \`${{ needs.check.outputs.solveit_release }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image tag | \`${{ needs.check.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Kept forever on | GHCR + Docker Hub |" >> $GITHUB_STEP_SUMMARY

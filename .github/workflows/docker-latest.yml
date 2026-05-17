@@ -1,0 +1,179 @@
+name: Docker - Build & Publish :latest
+
+# Builds the "latest" image: SOLVE-IT main branch data baked in at build time.
+# Rebuilds when SOLVE-IT main SHA has changed OR MCP main SHA has changed.
+# Publishes :latest and :<solve-it-sha>-<mcp-version> to GHCR and Docker Hub.
+# Docker Hub: keeps last 12 :<solve-it-sha>-<mcp-version> tags, removes older ones.
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'   # Every Monday 05:00 UTC (after :live build)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force rebuild even if SHAs unchanged'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  DOCKERHUB_REPO: 3soos3/solve-it-mcp
+  GHCR_REPO: ghcr.io/${{ github.repository_owner }}/solve-it-mcp
+  PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
+  DOCKERHUB_KEEP_TAGS: 12
+
+jobs:
+  check:
+    name: Check if rebuild needed
+    runs-on: ubuntu-latest
+    outputs:
+      rebuild: ${{ steps.decide.outputs.rebuild }}
+      mcp_sha: ${{ steps.decide.outputs.mcp_sha }}
+      mcp_version: ${{ steps.decide.outputs.mcp_version }}
+      solveit_sha: ${{ steps.decide.outputs.solveit_sha }}
+      image_tag: ${{ steps.decide.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Get SHAs and versions
+        id: decide
+        run: |
+          MCP_SHA=$(git rev-parse --short HEAD)
+          MCP_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+
+          # Get latest SOLVE-IT main SHA
+          SOLVEIT_SHA=$(git ls-remote https://github.com/SOLVE-IT-DF/solve-it.git HEAD | cut -c1-7)
+
+          IMAGE_TAG="${SOLVEIT_SHA}-${MCP_VERSION}"
+
+          # Read labels from published :latest image on GHCR
+          PUBLISHED_MCP_SHA=$(docker manifest inspect ${{ env.GHCR_REPO }}:latest 2>/dev/null \
+            | jq -r '.annotations["org.opencontainers.image.revision"] // empty' || echo "")
+          PUBLISHED_SOLVEIT_SHA=$(docker manifest inspect ${{ env.GHCR_REPO }}:latest 2>/dev/null \
+            | jq -r '.annotations["org.opencontainers.image.source.revision"] // empty' || echo "")
+
+          echo "mcp_sha=${MCP_SHA}" >> $GITHUB_OUTPUT
+          echo "mcp_version=${MCP_VERSION}" >> $GITHUB_OUTPUT
+          echo "solveit_sha=${SOLVEIT_SHA}" >> $GITHUB_OUTPUT
+          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "::notice::Force rebuild requested"
+          elif [ -z "$PUBLISHED_MCP_SHA" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "::notice::No published :latest image found, rebuilding"
+          elif [ "$PUBLISHED_MCP_SHA" != "$MCP_SHA" ] || [ "$PUBLISHED_SOLVEIT_SHA" != "$SOLVEIT_SHA" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "::notice::Changes detected — MCP: ${PUBLISHED_MCP_SHA}→${MCP_SHA}, SOLVE-IT: ${PUBLISHED_SOLVEIT_SHA}→${SOLVEIT_SHA}"
+          else
+            echo "rebuild=false" >> $GITHUB_OUTPUT
+            echo "::notice::No changes, skipping rebuild"
+          fi
+
+  build:
+    name: Build & Publish :latest
+    needs: check
+    if: needs.check.outputs.rebuild == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v5.1.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_REPO }}:latest
+            ${{ env.DOCKERHUB_REPO }}:${{ needs.check.outputs.image_tag }}
+            ${{ env.GHCR_REPO }}:latest
+            ${{ env.GHCR_REPO }}:${{ needs.check.outputs.image_tag }}
+          build-args: |
+            SOLVE_IT_VERSION=main
+            SOLVE_IT_SHA=${{ needs.check.outputs.solveit_sha }}
+            MCP_VERSION=${{ needs.check.outputs.mcp_version }}
+            VCS_REF=${{ needs.check.outputs.mcp_sha }}
+            BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          labels: |
+            org.opencontainers.image.revision=${{ needs.check.outputs.mcp_sha }}
+            org.opencontainers.image.source.revision=${{ needs.check.outputs.solveit_sha }}
+          cache-from: type=gha,scope=latest
+          cache-to: type=gha,mode=max,scope=latest
+          provenance: true
+
+  cleanup-dockerhub:
+    name: Cleanup Docker Hub (keep last 12 SHA tags)
+    needs: [check, build]
+    if: needs.check.outputs.rebuild == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete old SHA tags from Docker Hub
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN_RWD }}
+        run: |
+          # Authenticate
+          TOKEN=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"username\":\"${DOCKERHUB_USERNAME}\",\"password\":\"${DOCKERHUB_TOKEN}\"}" \
+            "https://hub.docker.com/v2/users/login/" | jq -r '.token')
+
+          # Get all tags matching SHA pattern: 7chars-version (not release tags which start with v)
+          TAGS=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+            "https://hub.docker.com/v2/repositories/${{ env.DOCKERHUB_REPO }}/tags/?page_size=100" \
+            | jq -r '.results[].name' \
+            | grep -E '^[a-f0-9]{7}-[0-9]' \
+            | sort -r)
+
+          COUNT=$(echo "$TAGS" | grep -c . || echo 0)
+          KEEP=${{ env.DOCKERHUB_KEEP_TAGS }}
+
+          if [ "$COUNT" -le "$KEEP" ]; then
+            echo "::notice::${COUNT} SHA tags found, keeping all (≤${KEEP})"
+            exit 0
+          fi
+
+          # Delete tags beyond the keep limit
+          echo "$TAGS" | tail -n +$((KEEP + 1)) | while read TAG; do
+            echo "Deleting old tag: ${TAG}"
+            curl -s -X DELETE \
+              -H "Authorization: Bearer ${TOKEN}" \
+              "https://hub.docker.com/v2/repositories/${{ env.DOCKERHUB_REPO }}/tags/${TAG}/"
+          done
+          echo "::notice::Cleaned up $((COUNT - KEEP)) old SHA tags"
+
+      - name: Summary
+        run: |
+          echo "## :latest published" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP SHA | \`${{ needs.check.outputs.mcp_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP Version | \`${{ needs.check.outputs.mcp_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| SOLVE-IT SHA | \`${{ needs.check.outputs.solveit_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Image tag | \`${{ needs.check.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Hub SHA tags kept | last ${{ env.DOCKERHUB_KEEP_TAGS }} |" >> $GITHUB_STEP_SUMMARY

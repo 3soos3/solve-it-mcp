@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.4
-# Live Dockerfile for SOLVE-IT MCP Server - Alpine Linux
-# Fetches SOLVE-IT data from data.solveit-df.org at container startup (no data baked in).
-# Multi-stage build for minimal image size and maximum security.
+# Release Dockerfile for SOLVE-IT MCP Server - Alpine Linux
+# Builds a pinned release image using an official SOLVE-IT release tag.
+# SOLVE_IT_VERSION is always overridden with the release tag (e.g. v0.2025-10).
 # Supports multi-architecture: linux/amd64, linux/arm64, linux/arm/v7
 
 # ============================================================================
@@ -9,6 +9,9 @@
 # ============================================================================
 FROM python:3.12-alpine AS builder
 
+# Build args
+ARG SOLVE_IT_VERSION=main
+ARG SOLVE_IT_RELEASE=unknown
 ARG MCP_VERSION=unknown
 
 # Install build dependencies (will be removed in same layer)
@@ -28,10 +31,17 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /build
 COPY pyproject.toml README.md ./
 
-# Install all dependencies (app only — no SOLVE-IT data baked in)
+# Fetch SOLVE-IT data at the specified release tag
+RUN git clone --depth 1 --branch ${SOLVE_IT_VERSION} \
+    https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it-main && \
+    rm -rf /tmp/solve-it-main/.git
+
+# Install all dependencies (app + solve-it library), then clean up
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir . && \
+    grep -v '^\s*pytest' /tmp/solve-it-main/requirements.txt | \
+        pip install --no-cache-dir -r /dev/stdin && \
     # Cleanup to reduce venv size
     pip uninstall -y pip setuptools wheel && \
     find /opt/venv -type f -name '*.pyc' -delete && \
@@ -49,8 +59,9 @@ FROM python:3.12-alpine AS runtime
 # Build arguments for flexibility
 ARG BUILD_DATE
 ARG VCS_REF
-ARG VERSION=live
+ARG VERSION=release
 ARG BUILD_DATE_RFC3339=${BUILD_DATE:-1970-01-01T00:00:00Z}
+ARG SOLVE_IT_RELEASE=unknown
 ARG MCP_VERSION=unknown
 
 # Metadata labels following OCI Image Spec
@@ -60,17 +71,17 @@ LABEL org.opencontainers.image.created="${BUILD_DATE_RFC3339}" \
       org.opencontainers.image.source="https://github.com/3soos3/solve-it-mcp" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.title="SOLVE-IT MCP Server (Live)" \
-      org.opencontainers.image.description="MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base (data fetched at runtime)" \
+      org.opencontainers.image.title="SOLVE-IT MCP Server" \
+      org.opencontainers.image.description="MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.base.name="docker.io/library/python:3.12-alpine"
 
 # Install minimal runtime dependencies and create non-root user
+# Removed: git (only needed in builder), curl (use wget instead)
 RUN apk add --no-cache \
         ca-certificates \
         libffi \
-        openssl \
-        wget && \
+        openssl && \
     # Create non-root user for security
     addgroup -g 1000 mcpuser && \
     adduser -D -u 1000 -G mcpuser -h /home/mcpuser -s /bin/sh mcpuser && \
@@ -92,9 +103,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copy application source code
 COPY --chown=mcpuser:mcpuser src/ /app/src/
 
-# Copy entrypoint script that fetches live data at startup
-COPY --chown=mcpuser:mcpuser docker-entrypoint-live.sh /app/docker-entrypoint-live.sh
-RUN chmod +x /app/docker-entrypoint-live.sh
+# Copy SOLVE-IT data from builder stage (no git in runtime)
+COPY --from=builder --chown=mcpuser:mcpuser /tmp/solve-it-main /app/solve-it-main
 
 # Switch to non-root user
 USER mcpuser
@@ -103,8 +113,7 @@ USER mcpuser
 ENV PYTHONPATH=/app/src \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    SOLVE_IT_DATA_PATH=/tmp/app-cache/solve-it/data \
-    SOLVE_IT_DATA_URL=https://data.solveit-df.org/solve-it-latest.zip \
+    SOLVE_IT_DATA_PATH=/app/solve-it-main/data \
     MCP_TRANSPORT=http \
     HTTP_HOST=0.0.0.0 \
     HTTP_PORT=8000 \
@@ -113,20 +122,19 @@ ENV PYTHONPATH=/app/src \
     LOG_LEVEL=INFO \
     LOG_FORMAT=json \
     TMPDIR=/tmp/app-tmp \
-    IMAGE_TAG=live-${MCP_VERSION} \
+    IMAGE_TAG=${SOLVE_IT_RELEASE}-${MCP_VERSION} \
     FORENSIC_METADATA=true
 
 # Expose HTTP port (default 8000, configurable via HTTP_PORT)
 EXPOSE 8000
 
 # Health check using wget (built into Alpine, no curl needed)
-HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD if [ "$MCP_TRANSPORT" = "http" ]; then \
             wget --no-verbose --tries=1 --spider http://localhost:${HTTP_PORT}/healthz || exit 1; \
         else \
             exit 0; \
         fi
 
-# Entrypoint fetches live data then starts the server
-ENTRYPOINT ["/app/docker-entrypoint-live.sh"]
-CMD ["--transport", "http"]
+# Start the server
+CMD ["sh", "-c", "python3 /app/src/server.py --transport ${MCP_TRANSPORT}"]

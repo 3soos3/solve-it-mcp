@@ -10,6 +10,8 @@ FROM python:3.12-alpine AS builder
 
 # Build args
 ARG SOLVE_IT_VERSION=main
+ARG SOLVE_IT_SHA=unknown
+ARG MCP_VERSION=unknown
 
 # Install build dependencies (will be removed in same layer)
 RUN apk add --no-cache --virtual .build-deps \
@@ -58,6 +60,8 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=stable
 ARG BUILD_DATE_RFC3339=${BUILD_DATE:-1970-01-01T00:00:00Z}
+ARG SOLVE_IT_SHA=unknown
+ARG MCP_VERSION=unknown
 
 # Metadata labels following OCI Image Spec
 LABEL org.opencontainers.image.created="${BUILD_DATE_RFC3339}" \
@@ -116,7 +120,9 @@ ENV PYTHONPATH=/app/src \
     ENVIRONMENT=production \
     LOG_LEVEL=INFO \
     LOG_FORMAT=json \
-    TMPDIR=/tmp/app-tmp
+    TMPDIR=/tmp/app-tmp \
+    IMAGE_TAG=${SOLVE_IT_SHA}-${MCP_VERSION} \
+    FORENSIC_METADATA=true
 
 # Expose HTTP port (default 8000, configurable via HTTP_PORT)
 EXPOSE 8000
