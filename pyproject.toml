@@ -167,6 +167,7 @@ markers = [
     "unit: Unit tests",
     "integration: Integration tests",
     "slow: Slow running tests",
+    "no_patch_solveit_init: Opt out of the autouse SolveItBaseTool init patch (for tests that exercise _resolve_data_path directly)",
 ]
 
 [tool.coverage.run]

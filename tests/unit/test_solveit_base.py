@@ -71,6 +71,7 @@ class TestSolveItBaseToolInitialization:
             assert tool.require_path_validation is False
 
 
+@pytest.mark.no_patch_solveit_init
 class TestDataPathResolution:
     """Test data path resolution functionality."""
 
