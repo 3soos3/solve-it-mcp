@@ -68,7 +68,8 @@ class SearchParams(ToolParams):
             "Keywords to search for across name and description fields. "
             "Use quotes for exact phrases (e.g. '\"memory acquisition\"'). "
             "Multiple words are combined using search_logic (AND by default)."
-        )
+        ),
+        min_length=1,
     )
     item_types: list[str] | None = Field(
         default=None,
@@ -119,7 +120,7 @@ class SearchTool(SolveItBaseTool[SearchParams]):
 class GetTechniqueDetailsParams(ToolParams):
     """Parameters for get_technique_details tool."""
 
-    technique_id: str = Field(description="The technique ID (e.g., DFT-1002)")
+    technique_id: str = Field(description="The technique ID (e.g., DFT-1002)", min_length=1)
 
 
 class GetTechniqueDetailsTool(SolveItBaseTool[GetTechniqueDetailsParams]):
@@ -151,7 +152,7 @@ class GetTechniqueDetailsTool(SolveItBaseTool[GetTechniqueDetailsParams]):
 class GetWeaknessDetailsParams(ToolParams):
     """Parameters for get_weakness_details tool."""
 
-    weakness_id: str = Field(description="The weakness ID (e.g., DFW-1001)")
+    weakness_id: str = Field(description="The weakness ID (e.g., DFW-1001)", min_length=1)
 
 
 class GetWeaknessDetailsTool(SolveItBaseTool[GetWeaknessDetailsParams]):
@@ -183,7 +184,7 @@ class GetWeaknessDetailsTool(SolveItBaseTool[GetWeaknessDetailsParams]):
 class GetMitigationDetailsParams(ToolParams):
     """Parameters for get_mitigation_details tool."""
 
-    mitigation_id: str = Field(description="The mitigation ID (e.g., DFM-1001)")
+    mitigation_id: str = Field(description="The mitigation ID (e.g., DFM-1001)", min_length=1)
 
 
 class GetMitigationDetailsTool(SolveItBaseTool[GetMitigationDetailsParams]):
@@ -217,7 +218,7 @@ class GetMitigationDetailsTool(SolveItBaseTool[GetMitigationDetailsParams]):
 class GetCitationParams(ToolParams):
     """Parameters for get_citation tool."""
 
-    citation_id: str = Field(description="The citation ID (e.g., DFCite-1115)")
+    citation_id: str = Field(description="The citation ID (e.g., DFCite-1115)", min_length=1)
 
 
 class GetCitationTool(SolveItBaseTool[GetCitationParams]):
@@ -245,7 +246,7 @@ class GetCitationTool(SolveItBaseTool[GetCitationParams]):
 class GetWeaknessesForTechniqueParams(ToolParams):
     """Parameters for get_weaknesses_for_technique tool."""
 
-    technique_id: str = Field(description="The technique ID (e.g., DFT-1001)")
+    technique_id: str = Field(description="The technique ID (e.g., DFT-1001)", min_length=1)
 
 
 class GetWeaknessesForTechniqueTool(SolveItBaseTool[GetWeaknessesForTechniqueParams]):
@@ -275,7 +276,7 @@ class GetWeaknessesForTechniqueTool(SolveItBaseTool[GetWeaknessesForTechniquePar
 class GetMitigationsForWeaknessParams(ToolParams):
     """Parameters for get_mitigations_for_weakness tool."""
 
-    weakness_id: str = Field(description="The weakness ID (e.g., DFW-1001)")
+    weakness_id: str = Field(description="The weakness ID (e.g., DFW-1001)", min_length=1)
 
 
 class GetMitigationsForWeaknessTool(SolveItBaseTool[GetMitigationsForWeaknessParams]):
@@ -310,7 +311,7 @@ class GetMitigationsForWeaknessTool(SolveItBaseTool[GetMitigationsForWeaknessPar
 class GetTechniquesForWeaknessParams(ToolParams):
     """Parameters for get_techniques_for_weakness tool."""
 
-    weakness_id: str = Field(description="The weakness ID (e.g., DFW-1001)")
+    weakness_id: str = Field(description="The weakness ID (e.g., DFW-1001)", min_length=1)
 
 
 class GetTechniquesForWeaknessTool(SolveItBaseTool[GetTechniquesForWeaknessParams]):
@@ -340,7 +341,7 @@ class GetTechniquesForWeaknessTool(SolveItBaseTool[GetTechniquesForWeaknessParam
 class GetWeaknessesForMitigationParams(ToolParams):
     """Parameters for get_weaknesses_for_mitigation tool."""
 
-    mitigation_id: str = Field(description="The mitigation ID (e.g., DFM-1001)")
+    mitigation_id: str = Field(description="The mitigation ID (e.g., DFM-1001)", min_length=1)
 
 
 class GetWeaknessesForMitigationTool(SolveItBaseTool[GetWeaknessesForMitigationParams]):
@@ -370,7 +371,7 @@ class GetWeaknessesForMitigationTool(SolveItBaseTool[GetWeaknessesForMitigationP
 class GetTechniquesForMitigationParams(ToolParams):
     """Parameters for get_techniques_for_mitigation tool."""
 
-    mitigation_id: str = Field(description="The mitigation ID (e.g., DFM-1001)")
+    mitigation_id: str = Field(description="The mitigation ID (e.g., DFM-1001)", min_length=1)
 
 
 class GetTechniquesForMitigationTool(SolveItBaseTool[GetTechniquesForMitigationParams]):
@@ -434,7 +435,7 @@ class ListObjectivesTool(SolveItBaseTool[ListObjectivesParams]):
 class GetTechniquesForObjectiveParams(ToolParams):
     """Parameters for get_techniques_for_objective tool."""
 
-    objective_name: str = Field(description="The exact name of the objective (e.g., 'Acquire data')")
+    objective_name: str = Field(description="The exact name of the objective (e.g., 'Acquire data')", min_length=1)
 
 
 class GetTechniquesForObjectiveTool(SolveItBaseTool[GetTechniquesForObjectiveParams]):
@@ -464,7 +465,7 @@ class GetTechniquesForObjectiveTool(SolveItBaseTool[GetTechniquesForObjectivePar
 class GetObjectivesForTechniqueParams(ToolParams):
     """Parameters for get_objectives_for_technique tool."""
 
-    technique_id: str = Field(description="The technique ID (e.g., DFT-1001)")
+    technique_id: str = Field(description="The technique ID (e.g., DFT-1001)", min_length=1)
 
 
 class GetObjectivesForTechniqueTool(SolveItBaseTool[GetObjectivesForTechniqueParams]):
@@ -525,7 +526,8 @@ class LoadObjectiveMappingParams(ToolParams):
     """Parameters for load_objective_mapping tool."""
 
     filename: str = Field(
-        description="Mapping filename to load (e.g., 'carrier.json', 'dfrws.json', 'solve-it.json')"
+        description="Mapping filename to load (e.g., 'carrier.json', 'dfrws.json', 'solve-it.json')",
+        min_length=1,
     )
 
 

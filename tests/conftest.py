@@ -96,6 +96,12 @@ def mock_knowledge_base():
     mock_kb.get_all_weaknesses_with_full_detail.return_value = [sample_weakness]
     mock_kb.get_all_mitigations_with_full_detail.return_value = [sample_mitigation]
 
+    # Mock citation method
+    mock_kb.get_citation_display_text.return_value = "Test Author (2024). Test Title. Test Journal."
+
+    # Mock objectives-for-technique method
+    mock_kb.get_objectives_for_technique.return_value = ["Test Objective 1", "Test Objective 2"]
+
     return mock_kb
 
 
