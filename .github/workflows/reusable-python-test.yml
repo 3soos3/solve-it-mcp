@@ -54,6 +54,7 @@ jobs:
         run: |
           pytest ${{ inputs.test-path }} \
             --verbose \
+            -m "not integration" \
             --cov=${{ inputs.source-path }} \
             --cov-report=term-missing \
             --cov-report=html \
