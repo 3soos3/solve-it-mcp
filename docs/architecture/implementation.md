@@ -124,7 +124,7 @@ A Docker manifest list bundles all three into a single multi-arch image tag.
 
 ### Local Multi-Arch Testing
 
-See [Multi-arch Testing](multiarch-testing.md) for a complete local testing guide.
+See [Multi-arch Testing](../development/multiarch-testing.md) for a complete local testing guide.
 
 ```bash
 # Quick build test for a specific platform
