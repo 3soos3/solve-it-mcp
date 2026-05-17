@@ -78,6 +78,7 @@ nav:
     - Troubleshooting: guides/troubleshooting.md
   - Reference:
     - Tools Overview: reference/tools-overview.md
+    - Environment Variables: reference/environment-variables.md
   - Deployment:
     - Docker: deployment/docker.md
     - Kubernetes: deployment/kubernetes.md
@@ -85,6 +86,8 @@ nav:
     - Overview: architecture/overview.md
     - Security Model: architecture/security-model.md
     - Implementation Details: architecture/implementation.md
+  - Transports:
+    - HTTP: transports/http.md
   - Development:
     - Local Testing: development/local-testing.md
     - Testing Guide: development/testing-guide.md

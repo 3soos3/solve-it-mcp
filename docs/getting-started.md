@@ -1,130 +1,110 @@
-# Getting Started with SOLVE-IT MCP Server
+# Getting Started
 
-This guide will get you up and running with the SOLVE-IT MCP Server in less than 5 minutes.
+This guide will get the SOLVE-IT MCP Server running in under 5 minutes.
 
-## What You'll Need
+## Prerequisites
 
-- Docker installed (recommended) **OR** Python 3.11/3.12
-- Basic understanding of Model Context Protocol (MCP)
-- 5 minutes of your time
+- Docker installed (recommended) **or** Python 3.12
+- Basic familiarity with Model Context Protocol (MCP)
 
 ## Choose Your Path
 
 === "Docker (Recommended)"
 
-    ### Why Docker?
-    
-    - **Fastest setup**: No Python dependencies to manage
-    - **Cross-platform**: Works on Linux, macOS, Windows
-    - **Production-ready**: Same image used in production deployments
-    - **Multi-architecture**: Native support for AMD64, ARM64, ARMv7
-
     ### Quick Start
 
     ```bash
-    # Pull the latest image
+    # Pull and run in HTTP mode
     docker pull 3soos3/solve-it-mcp:latest
-
-    # Run in HTTP mode
     docker run -p 8000:8000 \
       -e MCP_TRANSPORT=http \
-      -e HTTP_PORT=8000 \
       3soos3/solve-it-mcp:latest
     ```
 
     ### Verify It's Working
 
     ```bash
-    # Test health endpoint
     curl http://localhost:8000/healthz
+    ```
 
+    You should see: `{"status":"healthy","service":"solveit-mcp-server"}`
+
+    ```bash
     # List available tools
     curl -X POST http://localhost:8000/mcp/v1/messages \
       -H "Content-Type: application/json" \
-      -d '{"method":"tools/list"}'
+      -H "Accept: application/json, text/event-stream" \
+      -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
     ```
 
-    **Success!** You should see a JSON response listing 20+ available tools.
+    The response will list all 24 available tools.
 
     ### Next Steps
 
     - [Complete Docker Documentation](deployment/docker.md)
-    - [Environment Variables Reference](deployment/docker.md#environment-variables)
-    - [Docker Compose Examples](deployment/docker.md#docker-compose)
+    - [Environment Variables Reference](reference/environment-variables.md)
 
-=== "Python/pip"
+=== "Python"
 
     ### Prerequisites
 
-    - Python 3.11 or 3.12
-    - pip package manager
-    - SOLVE-IT knowledge base (downloaded separately)
+    - Python 3.12
+    - SOLVE-IT data repository cloned separately
 
-    ### Installation Steps
+    ### Installation
 
-    #### 1. Clone SOLVE-IT Knowledge Base
+    #### 1. Clone the SOLVE-IT Knowledge Base
 
     ```bash
-    # Clone the knowledge base
     git clone https://github.com/SOLVE-IT-DF/solve-it.git
-    cd solve-it
-    export SOLVE_IT_DATA_PATH=$(pwd)/data
+    export SOLVE_IT_DATA_PATH=$(pwd)/solve-it/data
     ```
 
-    #### 2. Install MCP Server
+    #### 2. Clone and Install the MCP Server
 
     ```bash
-    # Clone this repository
     git clone https://github.com/3soos3/solve-it-mcp.git
     cd solve-it-mcp
-
-    # Install dependencies
-    pip install -r requirements.txt
+    pip install -e .
     ```
 
     #### 3. Run the Server
 
     ```bash
-    # Run in stdio mode (for desktop MCP clients)
+    # stdio mode (for desktop MCP clients)
     python3 src/server.py
 
-    # Or run in HTTP mode
-    python3 src/server.py --transport http --port 8000
+    # HTTP mode
+    MCP_TRANSPORT=http python3 src/server.py
     ```
 
-    ### Verify It's Working
+    ### Verify
 
-    If running in HTTP mode:
+    In HTTP mode:
 
     ```bash
-    # Test health endpoint
     curl http://localhost:8000/healthz
     ```
 
-    If running in stdio mode, the server is ready when you see:
+    In stdio mode, the server is ready when logs show:
     ```
     INFO: SOLVE-IT MCP Server initialized successfully
-    INFO: Transport mode: stdio
     ```
 
     ### Next Steps
 
     - [Local Development Guide](development/local-testing.md)
-    - [Configuration Reference](deployment/docker.md#environment-variables)
+    - [Environment Variables Reference](reference/environment-variables.md)
 
 === "Desktop MCP Client"
 
-    ### For Claude Desktop / Cline / Other MCP Clients
+    ### Claude Desktop / Cline / Other MCP Clients
 
-    The easiest way to use with desktop MCP clients is via Docker in stdio mode.
+    The simplest integration uses Docker in stdio mode.
 
-    #### 1. Install Docker
+    #### 1. Configure Your MCP Client
 
-    Make sure Docker is installed and running on your system.
-
-    #### 2. Configure Your MCP Client
-
-    Add to your MCP client configuration (e.g., `claude_desktop_config.json`):
+    Add to your MCP client configuration (e.g. `claude_desktop_config.json`):
 
     ```json
     {
@@ -132,9 +112,7 @@ This guide will get you up and running with the SOLVE-IT MCP Server in less than
         "solveit": {
           "command": "docker",
           "args": [
-            "run",
-            "-i",
-            "--rm",
+            "run", "-i", "--rm",
             "-e", "MCP_TRANSPORT=stdio",
             "3soos3/solve-it-mcp:latest"
           ]
@@ -143,21 +121,17 @@ This guide will get you up and running with the SOLVE-IT MCP Server in less than
     }
     ```
 
-    #### 3. Restart Your Client
+    #### 2. Restart Your Client
 
     Restart your MCP client to load the new configuration.
 
-    #### 4. Verify Installation
+    #### 3. Verify
 
-    In your MCP client, try asking:
-    
-    > "What SOLVE-IT tools are available?"
+    Ask your client: *"What SOLVE-IT tools are available?"*
 
-    You should see a list of 20+ forensic investigation tools.
+    You should see all 24 forensic investigation tools listed.
 
-    ### Alternative: Python-based
-
-    If you prefer not to use Docker:
+    #### Alternative: Python-based
 
     ```json
     {
@@ -165,7 +139,6 @@ This guide will get you up and running with the SOLVE-IT MCP Server in less than
         "solveit": {
           "command": "python3",
           "args": ["/path/to/solve-it-mcp/src/server.py"],
-          "cwd": "/path/to/solve-it-mcp",
           "env": {
             "SOLVE_IT_DATA_PATH": "/path/to/solve-it/data"
           }
@@ -181,98 +154,64 @@ This guide will get you up and running with the SOLVE-IT MCP Server in less than
 
 ## Your First Query
 
-Once the server is running, try these example queries:
+Once the server is running in HTTP mode, try these examples:
 
-### Example 1: Search for Techniques
+### Search for Techniques
 
 ```bash
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 1,
     "method": "tools/call",
     "params": {
       "name": "search",
       "arguments": {
-        "keywords": "network analysis",
+        "keywords": "memory acquisition",
         "item_types": ["techniques"]
       }
     }
   }'
 ```
 
-### Example 2: Get Technique Details
+### Get Technique Details
 
 ```bash
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 2,
     "method": "tools/call",
     "params": {
       "name": "get_technique_details",
-      "arguments": {
-        "technique_id": "DFT-1001"
-      }
+      "arguments": {"technique_id": "DFT-1001"}
     }
   }'
 ```
 
-### Example 3: Explore Relationships
+### Explore Relationships
 
 ```bash
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 3,
     "method": "tools/call",
     "params": {
       "name": "get_weaknesses_for_technique",
-      "arguments": {
-        "technique_id": "DFT-1001"
-      }
+      "arguments": {"technique_id": "DFT-1001"}
     }
   }'
 ```
 
-## Understanding the Response
+## Quick Docker Compose Setup
 
-Successful responses will include:
-
-- **Content**: The requested data (technique details, search results, etc.)
-- **Metadata**: Information about the query and results
-- **Structure**: JSON-formatted for easy parsing
-
-Example response structure:
-
-```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "{ \"results\": [...] }"
-    }
-  ],
-  "isError": false
-}
-```
-
-## Common Configuration Options
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MCP_TRANSPORT` | `stdio` | Transport mode: `http` or `stdio` |
-| `HTTP_HOST` | `0.0.0.0` | HTTP server bind address |
-| `HTTP_PORT` | `8000` | HTTP server port |
-| `SOLVE_IT_DATA_PATH` | `/app/solve-it-main/data` | Path to SOLVE-IT data |
-| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `LOG_FORMAT` | `json` | Log format: `json` or `text` |
-
-### Docker Compose Example
-
-For persistent setups, use Docker Compose:
+For a persistent local deployment:
 
 ```yaml
-version: '3.8'
 services:
   solve-it-mcp:
     image: 3soos3/solve-it-mcp:latest
@@ -280,87 +219,61 @@ services:
       - "8000:8000"
     environment:
       - MCP_TRANSPORT=http
-      - HTTP_PORT=8000
       - LOG_LEVEL=INFO
+      - OTEL_ENABLED=false
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/healthz"]
       interval: 30s
       timeout: 3s
       retries: 3
     restart: unless-stopped
 ```
 
-Save as `docker-compose.yml` and run:
-
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
-## Next Steps
+## Common Configuration
 
-### For Forensic Analysts
-Learn how to use SOLVE-IT MCP in real investigations:
+| Variable | Default | Description |
+|---|---|---|
+| `MCP_TRANSPORT` | `stdio` (local), `http` (Docker) | Transport mode |
+| `HTTP_PORT` | `8000` | HTTP server port |
+| `SOLVE_IT_DATA_PATH` | `/app/solve-it-main/data` | Path to SOLVE-IT data |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR` |
+| `OTEL_ENABLED` | `true` | Enable OpenTelemetry tracing |
 
-- [Forensic Analysts Guide](guides/for-forensic-analysts.md)
-- [Tools Reference](reference/tools-overview.md)
-- [Common Investigation Patterns](guides/for-forensic-analysts.md#common-workflows)
-
-### For Researchers
-Understand how to use SOLVE-IT MCP in your research:
-
-- [Researchers Guide](guides/for-researchers.md)
-- [Citation Information](guides/for-researchers.md#citing-this-software)
-- [Tools Overview](reference/tools-overview.md)
-
-### For Developers
-Set up a development environment:
-
-- [Local Development Guide](development/local-testing.md)
-- [Testing Guide](development/testing-guide.md)
-- [Architecture Overview](architecture/overview.md)
-
-### For Production Deployments
-Deploy to Kubernetes or production environments:
-
-- [Kubernetes Deployment](deployment/kubernetes.md)
-- [Security Considerations](architecture/security-model.md)
-- [Monitoring & Observability](deployment/kubernetes.md#monitoring)
+See the [Environment Variables Reference](reference/environment-variables.md) for the complete list.
 
 ## Troubleshooting
 
-### Server Won't Start
+### Server won't start
 
-**Problem**: `Connection refused` or server doesn't start
+```bash
+# Check port availability
+lsof -i :8000
 
-**Solutions**:
-- Verify Docker is running: `docker ps`
-- Check port availability: `lsof -i :8000`
-- Review logs: `docker logs <container-id>`
+# Check container logs
+docker logs <container-id>
+```
 
-### SOLVE-IT Data Not Found
+### SOLVE-IT data not found
 
-**Problem**: `Failed to load SOLVE-IT knowledge base`
+For Docker images, data is embedded — this should not occur. File a bug if it does.
 
-**Solutions**:
-- Verify `SOLVE_IT_DATA_PATH` environment variable
-- Check that the path contains `techniques.json`, `weaknesses.json`, etc.
-- For Docker: the data is embedded in the image (no action needed)
+For Python installs, verify `SOLVE_IT_DATA_PATH` points to a directory containing `techniques.json`, `weaknesses.json`, and `mitigations.json`.
 
-### Tools Not Appearing
+### Tools not appearing in MCP client
 
-**Problem**: MCP client doesn't show SOLVE-IT tools
-
-**Solutions**:
-- Restart your MCP client
-- Check client configuration syntax
-- Verify server is running: `curl http://localhost:8000/healthz`
-- Check client logs for errors
+1. Restart your MCP client
+2. Check configuration file syntax
+3. Verify the server is running: `curl http://localhost:8000/healthz`
 
 For more help, see the [Troubleshooting Guide](guides/troubleshooting.md).
 
-## Getting Help
+## Next Steps
 
-- **Documentation Issues**: Check [Troubleshooting](guides/troubleshooting.md)
-- **Bug Reports**: [GitHub Issues](https://github.com/3soos3/solve-it-mcp/issues)
-- **Questions**: [GitHub Discussions](https://github.com/3soos3/solve-it-mcp/discussions)
-- **Security Issues**: See [SECURITY.md](https://github.com/3soos3/solve-it-mcp/blob/main/SECURITY.md)
+- **Forensic Analysts**: [Practical Investigation Guide](guides/for-forensic-analysts.md)
+- **Researchers**: [Citation & Academic Use](guides/for-researchers.md)
+- **Production Deployment**: [Docker Guide](deployment/docker.md) | [Kubernetes Guide](deployment/kubernetes.md)
+- **All Tools**: [Tools Reference](reference/tools-overview.md)

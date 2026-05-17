@@ -9,72 +9,65 @@ Common issues and solutions for SOLVE-IT MCP Server.
 **Problem**: `Error response from daemon: manifest unknown`
 
 **Solutions**:
-- Verify image name: `3soos3/solve-it-mcp:latest`
-- Check Docker Hub status
-- Try alternative registry: `ghcr.io/3soos3/solve-it-mcp:latest`
-- Verify network connectivity
 
-### Python Dependencies Fail to Install
+- Verify the image name: `3soos3/solve-it-mcp:latest`
+- Try the alternative registry: `ghcr.io/3soos3/solve-it-mcp:latest`
+- Check your network connectivity and Docker Hub status
+
+### Python Dependencies Fail
 
 **Problem**: `pip install` fails with dependency conflicts
 
 **Solutions**:
-- Use Python 3.11 or 3.12: `python3 --version`
-- Create clean virtual environment:
-  ```bash
-  python3 -m venv venv
-  source venv/bin/activate
-  pip install --upgrade pip
-  pip install -r requirements.txt
-  ```
-- Check for conflicting packages: `pip list`
+
+```bash
+# Use Python 3.12
+python3 --version
+
+# Use a clean virtual environment
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -e .
+```
 
 ## Runtime Issues
 
 ### Server Won't Start
 
-**Problem**: Server crashes immediately or won't bind to port
+**Problem**: Server crashes or won't bind to port
 
-**Solutions**:
+**Check port availability:**
 
-1. **Check port availability**:
-   ```bash
-   lsof -i :8000  # Linux/Mac
-   netstat -ano | findstr :8000  # Windows
-   ```
+```bash
+lsof -i :8000          # Linux/macOS
+netstat -ano | findstr :8000  # Windows
+```
 
-2. **Try different port**:
-   ```bash
-   docker run -p 8080:8080 \
-     -e HTTP_PORT=8080 \
-     3soos3/solve-it-mcp:latest
-   ```
+**Try a different port:**
 
-3. **Check Docker daemon**:
-   ```bash
-   docker ps  # Verify Docker is running
-   docker logs <container-id>  # Check logs
-   ```
+```bash
+docker run -p 8080:8080 -e HTTP_PORT=8080 3soos3/solve-it-mcp:latest
+```
+
+**Check Docker logs:**
+
+```bash
+docker logs <container-id>
+```
 
 ### SOLVE-IT Data Not Found
 
 **Problem**: `Failed to load SOLVE-IT knowledge base`
 
-**Solutions**:
+For Docker (`:latest` or `:release`) — data is baked in; this should not occur. File a bug if it does.
 
-**For Docker** (data is embedded):
-- Should not occur; file a bug if it does
+For Python installs:
 
-**For Python installation**:
 ```bash
-# Verify SOLVE-IT data path
+# Verify the path is set and contains the right files
 ls $SOLVE_IT_DATA_PATH
-
-# Should contain:
-# - techniques.json
-# - weaknesses.json
-# - mitigations.json
-# - objective_mappings/
+# Should show: techniques.json, weaknesses.json, mitigations.json, objective_mappings/
 
 # Set correct path
 export SOLVE_IT_DATA_PATH=/path/to/solve-it/data
@@ -82,27 +75,13 @@ export SOLVE_IT_DATA_PATH=/path/to/solve-it/data
 
 ### Health Check Fails
 
-**Problem**: `/healthz` endpoint returns error
+**Problem**: `/healthz` returns an error or connection refused
 
-**Solutions**:
+1. The server may still be starting — wait 5–10 seconds then retry
+2. Check that `MCP_TRANSPORT=http` is set (health endpoints only work in HTTP mode)
+3. Inspect logs: `docker logs <container-id>`
 
-1. **Wait for startup** (can take 5-10 seconds):
-   ```bash
-   sleep 10 && curl http://localhost:8000/healthz
-   ```
-
-2. **Check logs**:
-   ```bash
-   docker logs <container-id>
-   ```
-
-3. **Verify transport mode**:
-   ```bash
-   # For HTTP mode
-   docker run -p 8000:8000 \
-     -e MCP_TRANSPORT=http \
-     3soos3/solve-it-mcp:latest
-   ```
+The health endpoint is `/healthz` (liveness) and `/readyz` (readiness). The legacy endpoints `/health` and `/ready` also work but are deprecated.
 
 ## MCP Client Issues
 
@@ -110,57 +89,40 @@ export SOLVE_IT_DATA_PATH=/path/to/solve-it/data
 
 **Problem**: MCP client doesn't show SOLVE-IT tools
 
-**Solutions**:
+**Check configuration syntax:**
 
-1. **Verify client configuration**:
-   ```json
-   {
-     "mcpServers": {
-       "solveit": {
-         "command": "docker",
-         "args": ["run", "-i", "--rm", "-e", "MCP_TRANSPORT=stdio",
-                  "3soos3/solve-it-mcp:latest"]
-       }
-     }
-   }
-   ```
+```json
+{
+  "mcpServers": {
+    "solveit": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "MCP_TRANSPORT=stdio",
+               "3soos3/solve-it-mcp:latest"]
+    }
+  }
+}
+```
 
-2. **Check for typos** in config file
+**Steps:**
 
-3. **Restart MCP client** completely
+1. Verify the server runs standalone: `docker run -i --rm -e MCP_TRANSPORT=stdio 3soos3/solve-it-mcp:latest`
+2. Restart your MCP client completely
+3. Check the client's log output for errors
 
-4. **Verify server runs standalone**:
-   ```bash
-   docker run -i --rm \
-     -e MCP_TRANSPORT=stdio \
-     3soos3/solve-it-mcp:latest
-   ```
+### Connection Refused (HTTP Mode)
 
-### Connection Refused
+```bash
+# Verify server is running
+curl http://localhost:8000/healthz
 
-**Problem**: Client can't connect to HTTP server
+# Check firewall
+sudo ufw status
+sudo ufw allow 8000/tcp
 
-**Solutions**:
-
-1. **Verify server is running**:
-   ```bash
-   curl http://localhost:8000/healthz
-   ```
-
-2. **Check firewall rules**:
-   ```bash
-   # Linux
-   sudo ufw status
-   sudo ufw allow 8000/tcp
-   ```
-
-3. **Verify host binding**:
-   ```bash
-   docker run -p 8000:8000 \
-     -e HTTP_HOST=0.0.0.0 \
-     -e MCP_TRANSPORT=http \
-     3soos3/solve-it-mcp:latest
-   ```
+# Verify host binding
+docker run -p 8000:8000 -e HTTP_HOST=0.0.0.0 -e MCP_TRANSPORT=http \
+  3soos3/solve-it-mcp:latest
+```
 
 ## Query Issues
 
@@ -168,181 +130,112 @@ export SOLVE_IT_DATA_PATH=/path/to/solve-it/data
 
 **Problem**: Queries return no results when data should exist
 
-**Solutions**:
+**Check ID format** — IDs must be uppercase with a 4-digit number:
 
-1. **Check search syntax**:
-   ```bash
-   # Correct
-   {"keywords": "network analysis"}
-   
-   # Wrong
-   {"keywords": network analysis}  # Missing quotes
-   ```
+```
+Correct:  DFT-1001
+Wrong:    t1001     (lowercase)
+Wrong:    DFT-001   (only 3 digits)
+```
 
-2. **Verify item types**:
-   ```bash
-   # Correct
-   {"item_types": ["techniques"]}
-   
-   # Wrong
-   {"item_types": "techniques"}  # Should be array
-   ```
+**Check item_types** — must be an array:
 
-3. **Check ID format**:
-   ```bash
-   # Correct: Uppercase T, exact ID
-   {"technique_id": "DFT-1001"}
-   
-   # Wrong
-   {"technique_id": "t1001"}  # Lowercase
-   {"technique_id": "T001"}   # Missing digit
-   ```
+```json
+{"item_types": ["techniques"]}    // correct
+{"item_types": "techniques"}      // wrong
+```
+
+**For search** — try broader terms or use `substring_match: true`:
+
+```json
+{
+  "keywords": "memory",
+  "substring_match": true
+}
+```
 
 ### Invalid JSON Errors
 
-**Problem**: `Invalid JSON` or parsing errors
+Validate JSON before sending:
 
-**Solutions**:
+```bash
+echo '{"method":"tools/list"}' | jq .
+```
 
-1. **Validate JSON** before sending:
-   ```bash
-   echo '{"method":"tools/list"}' | jq .
-   ```
+Use single quotes in shell to avoid escaping issues:
 
-2. **Escape special characters**:
-   ```bash
-   # In shell, use single quotes for JSON
-   curl -X POST http://localhost:8000/mcp/v1/messages \
-     -H 'Content-Type: application/json' \
-     -d '{"method":"tools/list"}'
-   ```
-
-3. **Check for trailing commas** (not allowed in JSON)
+```bash
+curl -X POST http://localhost:8000/mcp/v1/messages \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
 
 ## Performance Issues
 
 ### Slow Queries
 
-**Problem**: Queries take longer than expected
-
-**Solutions**:
-
-1. **Use specific queries** instead of bulk operations when possible
-
-2. **Disable telemetry** for faster performance:
-   ```bash
-   docker run -p 8000:8000 \
-     -e OTEL_ENABLED=false \
-     3soos3/solve-it-mcp:latest
-   ```
-
-3. **Reduce logging**:
-   ```bash
-   docker run -p 8000:8000 \
-     -e LOG_LEVEL=ERROR \
-     3soos3/solve-it-mcp:latest
-   ```
+1. Use specific tools instead of bulk operations where possible
+2. Disable telemetry: `-e OTEL_ENABLED=false`
+3. Reduce logging: `-e LOG_LEVEL=ERROR`
 
 ### High Memory Usage
 
-**Problem**: Container uses excessive memory
+Set container memory limits:
 
-**Solutions**:
+```bash
+docker run --memory=256m 3soos3/solve-it-mcp:latest
+```
 
-1. **Set memory limits**:
-   ```bash
-   docker run -p 8000:8000 \
-     --memory=256m \
-     3soos3/solve-it-mcp:latest
-   ```
+## Kubernetes Issues
 
-2. **Restart periodically** for long-running instances
+### Pod CrashLoopBackOff
 
-## Deployment Issues
+```bash
+kubectl logs -f <pod-name>
+kubectl describe pod <pod-name>
+```
 
-### Kubernetes Pod CrashLoopBackOff
+Common causes:
 
-**Problem**: Pod keeps restarting
+- Resource limits too low (OOMKilled)
+- `MCP_TRANSPORT` not set to `http`
+- Liveness probe firing before startup completes
 
-**Solutions**:
+Increase the initial delay:
 
-1. **Check logs**:
-   ```bash
-   kubectl logs -f <pod-name>
-   kubectl describe pod <pod-name>
-   ```
+```yaml
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+```
 
-2. **Verify resource limits**:
-   ```yaml
-   resources:
-     requests:
-       memory: "128Mi"
-       cpu: "100m"
-     limits:
-       memory: "256Mi"
-       cpu: "500m"
-   ```
+### ImagePullBackOff
 
-3. **Check liveness probe timing**:
-   ```yaml
-   livenessProbe:
-     initialDelaySeconds: 30  # Increase if startup is slow
-     periodSeconds: 10
-   ```
+For Docker Hub (no auth required for public images):
 
-### Image Pull Errors in Kubernetes
+```yaml
+image: 3soos3/solve-it-mcp:latest
+```
 
-**Problem**: `ImagePullBackOff` or authentication errors
+For GHCR, create an image pull secret:
 
-**Solutions**:
-
-1. **Use public registry** (no auth required):
-   ```yaml
-   image: 3soos3/solve-it-mcp:latest
-   ```
-
-2. **For GHCR, create secret**:
-   ```bash
-   kubectl create secret docker-registry ghcr-secret \
-     --docker-server=ghcr.io \
-     --docker-username=<username> \
-     --docker-password=<token>
-   ```
+```bash
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<username> \
+  --docker-password=<token>
+```
 
 ## Common Error Messages
 
-### "Transport mode must be stdio or http"
+| Error | Cause | Fix |
+|---|---|---|
+| `Transport mode must be stdio or http` | Invalid `MCP_TRANSPORT` value | Use `stdio` or `http` |
+| `Knowledge base not initialized` | Tool called before data loaded | Wait for startup to complete |
+| `Tool not found` | Typo in tool name | Call `tools/list` to see correct names |
 
-**Cause**: Invalid `MCP_TRANSPORT` value
-
-**Solution**:
-```bash
-# Valid values
-MCP_TRANSPORT=stdio
-MCP_TRANSPORT=http
-
-# Invalid
-MCP_TRANSPORT=https  # Not supported
-```
-
-### "Knowledge base not initialized"
-
-**Cause**: Server started before data loaded
-
-**Solution**: Wait for initialization message in logs
-
-### "Tool not found"
-
-**Cause**: Typo in tool name
-
-**Solution**: List available tools:
-```bash
-curl -X POST http://localhost:8000/mcp/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{"method":"tools/list"}'
-```
-
-## Getting More Help
+## Diagnostics
 
 ### Enable Debug Logging
 
@@ -353,51 +246,27 @@ docker run -p 8000:8000 \
   3soos3/solve-it-mcp:latest
 ```
 
-### Collect Diagnostic Information
+### When Reporting Issues
 
-When reporting issues, include:
+Include:
 
-1. **Server version**:
-   ```bash
-   docker inspect 3soos3/solve-it-mcp:latest | grep "Created"
-   ```
+1. **Image/version**: `docker inspect 3soos3/solve-it-mcp:latest | grep Created`
+2. **Platform**: OS, Docker version (`docker --version`), Python version if applicable
+3. **Logs**: `docker logs <container-id> > server-logs.txt`
+4. **Configuration**: environment variables, compose file or Kubernetes manifest
 
-2. **Environment**:
-   - OS and version
-   - Docker version: `docker --version`
-   - Python version (if applicable): `python3 --version`
+**Report bugs**: [GitHub Issues](https://github.com/3soos3/solve-it-mcp/issues)
 
-3. **Logs**:
-   ```bash
-   docker logs <container-id> > server-logs.txt
-   ```
+**Security issues**: See [SECURITY.md](https://github.com/3soos3/solve-it-mcp/blob/main/SECURITY.md)
 
-4. **Configuration**:
-   - Environment variables
-   - docker-compose.yml or Kubernetes manifests
-
-### Report Issues
-
-- **GitHub Issues**: [https://github.com/3soos3/solve-it-mcp/issues](https://github.com/3soos3/solve-it-mcp/issues)
-- **Include**: Diagnostic info, steps to reproduce, expected vs actual behavior
-- **Security issues**: See [SECURITY.md](https://github.com/3soos3/solve-it-mcp/blob/main/SECURITY.md)
-
-## Quick Fixes Reference
+## Quick Reference
 
 | Problem | Quick Fix |
-|---------|-----------|
-| Port in use | `docker run -p 8080:8080 -e HTTP_PORT=8080 ...` |
-| Connection refused | Verify server: `curl http://localhost:8000/healthz` |
+|---|---|
+| Port in use | `-p 8080:8080 -e HTTP_PORT=8080` |
+| Connection refused | `curl http://localhost:8000/healthz` |
 | No tools in client | Restart client, check config syntax |
 | Slow queries | `-e OTEL_ENABLED=false -e LOG_LEVEL=ERROR` |
 | High memory | `--memory=256m` |
 | Pod won't start | Increase `initialDelaySeconds` in liveness probe |
-| Invalid JSON | Validate with `jq` before sending |
-| Empty results | Check ID format (uppercase, exact) |
-
-## Still Need Help?
-
-1. Check [Documentation](../index.md)
-2. Search [GitHub Issues](https://github.com/3soos3/solve-it-mcp/issues)
-3. Ask in [Discussions](https://github.com/3soos3/solve-it-mcp/discussions)
-4. File new issue with diagnostic info
+| Empty results | Check ID format: uppercase, 4 digits (DFT-1001) |

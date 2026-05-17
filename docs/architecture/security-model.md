@@ -2,168 +2,156 @@
 
 Multi-layer security architecture for SOLVE-IT MCP Server.
 
-!!! info "Production Use Disclaimer"
-    This is a best-effort maintained project. For critical forensic use, perform your own security audit and consider maintaining your own fork.
+!!! note "Production Use Disclaimer"
+    This is a best-effort maintained project. For critical forensic use, perform your own security audit.
 
 ## Security Layers
 
 ### 1. Container Security
 
-**Base Image**: Alpine Linux 3.23
-- Minimal attack surface (5MB base image)
-- Zero CRITICAL/HIGH vulnerabilities
-- Regular security updates
+**Base Image**: Python 3.12-Alpine
 
-**Non-Root User**:
+- Minimal attack surface (~5 MB base image)
+- Zero CRITICAL/HIGH CVEs maintained via regular scanning and monthly rebuilds
+- Multi-stage build: build tools (`git`, `cargo`, `rust`) are excluded from the runtime image
+
+**Non-root user** (`mcpuser`, UID 1000):
+
 ```dockerfile
-USER mcpuser:1000
+USER mcpuser
 ```
 
-**Read-Only Filesystem** (recommended in production):
+**Recommended runtime flags** in production:
+
 ```yaml
 securityContext:
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop: ["ALL"]
 ```
 
-### 2. Network Security
+### 2. Input Validation
 
-**CORS Configuration**:
-- Configurable allowed origins
-- Credential handling controls
-- Method restrictions
+All tool parameters are validated by Pydantic before execution:
 
-**Rate Limiting** (application level):
-- Per-client request limits
-- Configurable thresholds
-- Protection against DoS
-
-### 3. Input Validation
-
-**Pydantic-based Validation**:
-- All tool parameters validated
 - Type-safe parameter handling
 - Auto-generated JSON schemas
-
-**Security Middleware**:
-- Request sanitization
+- Input sanitization middleware
+- Execution timeout per tool (45 s default)
 - Input size limits
-- Malicious pattern detection
+
+### 3. Network Security
+
+**Rate limiting**: application-level per-client request limiting.
 
 ### 4. Authentication & Authorization
 
-**Current State**: None (open access)
+**Current state**: none (open access).
 
-**Recommended for Production**:
-- Add API key authentication
-- Implement OAuth2/OIDC
-- Use service mesh (Istio) for mTLS
-- Network policies in Kubernetes
+**Recommended for production**:
 
-### 5. Cryptographic Verification
+- API key authentication
+- OAuth2/OIDC
+- Kubernetes Network Policies
+- Service mesh mTLS (Istio)
 
-**Docker Image Signing** (GHCR only):
+### 5. Cryptographic Verification (GHCR Only)
+
+GHCR images are signed with Cosign keyless signing and include an SBOM and SLSA provenance attestation.
+
+**Verify image authenticity:**
+
 ```bash
-# Verify image authenticity
 cosign verify ghcr.io/3soos3/solve-it-mcp:latest \
   --certificate-identity-regexp=github \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 ```
 
-**SBOM Available**:
+**Download SBOM:**
+
 ```bash
-# Download Software Bill of Materials
 cosign download sbom ghcr.io/3soos3/solve-it-mcp:latest
+```
+
+**View build provenance:**
+
+```bash
+cosign download attestation ghcr.io/3soos3/solve-it-mcp:latest | jq
 ```
 
 ### 6. Audit & Logging
 
-**Structured Logging**:
 - All requests logged with correlation IDs
-- Configurable log levels
-- JSON format for SIEM integration
-
-**OpenTelemetry Traces**:
-- Complete request lifecycle tracking
-- Performance monitoring
-- Error tracking
+- JSON structured logging for SIEM integration
+- OpenTelemetry traces covering the complete request lifecycle
 
 ### 7. Automated Security Scanning
 
-**CI/CD Security**:
-- ✅ Trivy (container vulnerability scanning)
-- ✅ Bandit (Python security linter)
-- ✅ Safety (dependency vulnerability DB)
-- ✅ pip-audit (PyPI vulnerability DB)
-- ✅ Hadolint (Dockerfile best practices)
-- ✅ TruffleHog (secret detection)
-- ✅ Gitleaks (secret scanning)
+Every PR and main-branch push triggers:
 
-**Regular Scans**:
-- Every PR
-- Every main push
-- Daily scheduled scans
-- Monthly rebuilds
+- **Trivy** — container vulnerability scanning (blocks on CRITICAL/HIGH)
+- **Bandit** — Python security linting
+- **Safety / pip-audit** — dependency vulnerability databases
+- **Hadolint** — Dockerfile best practices
+- **TruffleHog / Gitleaks** — secret detection
+
+Daily scheduled scans also run to catch newly published CVEs.
 
 ### 8. License Compliance
 
-**Automated Checks**:
-- Blocks GPL/AGPL dependencies
-- Generates NOTICE file
-- MIT-compatible only
+Automated checks block GPL/AGPL dependencies. Only MIT-compatible licenses are permitted.
+
+---
 
 ## Threat Model
 
 ### In Scope
 
-**Local Execution Risks**:
-- Malicious input to tools
-- Resource exhaustion
-- Information disclosure
-
-**Network Risks** (HTTP mode):
-- Unauthorized access
-- Data interception
-- DoS attacks
+- Malicious or malformed input to MCP tools
+- Resource exhaustion (CPU, memory)
+- Unauthorized access in HTTP mode
+- Information disclosure in error messages
 
 ### Out of Scope
 
-- Physical access to host
-- Supply chain attacks (use SBOM for verification)
+- Physical access to the host
+- Supply chain attacks (mitigated by SBOM verification)
 - Social engineering
+
+---
 
 ## Security Best Practices
 
-### For Production Deployment
+### Production Deployment
 
-1. **Use GHCR images** with signature verification
-2. **Verify SBOM** before deployment
-3. **Run as non-root** (default)
-4. **Use network policies** (Kubernetes)
-5. **Enable audit logging**
-6. **Configure resource limits**
-7. **Use TLS** for HTTP transport
-8. **Implement authentication**
-9. **Regular updates** (monthly rebuild workflow)
-10. **Monitor with SIEM**
+1. Use GHCR images with signature verification
+2. Verify SBOM before deployment
+3. Run as non-root (default)
+4. Use Kubernetes Network Policies
+5. Enable audit logging (`LOG_FORMAT=json`)
+6. Configure resource limits
+7. Use TLS (via reverse proxy or service mesh)
+8. Implement authentication (API keys or OAuth2)
+9. Keep images updated (monthly rebuild workflow)
 
-### For Forensic Use
+### Forensic Use (Chain of Custody)
 
-**Chain of Custody**:
-- Document image SHA256
-- Verify cryptographic signatures
-- Maintain SBOM records
-- Log all tool invocations
+1. Document the image SHA256 digest
+2. Verify cryptographic signatures with Cosign
+3. Store the SBOM alongside your evidence
+4. Enable `FORENSIC_METADATA=true` to embed version and timestamp in every tool response
+5. Log all tool invocations with correlation IDs
+6. Run on an isolated network
 
-**Evidence Integrity**:
-- Run on isolated networks
-- Use read-only mode when possible
-- Audit all queries
-- Maintain correlation IDs
+---
 
 ## Vulnerability Reporting
 
 See [SECURITY.md](https://github.com/3soos3/solve-it-mcp/blob/main/SECURITY.md) for:
+
 - Reporting process
 - Response expectations
 - Supported versions
@@ -177,6 +165,5 @@ See [SECURITY.md](https://github.com/3soos3/solve-it-mcp/blob/main/SECURITY.md) 
 ## Related Documentation
 
 - [Architecture Overview](overview.md)
-- [Implementation Details](implementation.md)
-- [Docker Security](../deployment/docker.md#security)
-- [Kubernetes Security](../deployment/kubernetes.md#security)
+- [Docker Deployment — Security](../deployment/docker.md#security)
+- [Kubernetes Deployment](../deployment/kubernetes.md)

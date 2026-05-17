@@ -1,6 +1,34 @@
-# Quick Testing Reference Card
+# Testing Guide
 
-## Before Every Push - Run This:
+Quick reference for running tests and quality checks.
+
+## Minimum Before Every Push
+
+```bash
+ruff check --fix src/ tests/
+black src/ tests/
+pytest tests/ -q
+```
+
+If all pass: safe to push.
+
+---
+
+## Full Check Suite
+
+```bash
+# 1. YAML linting (if you modified workflows)
+yamllint .github/workflows/
+
+# 2. Python linting and formatting
+ruff check src/ tests/
+black --check src/ tests/
+
+# 3. Tests
+pytest tests/ -v --cov=src --cov-report=term-missing
+```
+
+Or use the pre-push script:
 
 ```bash
 bash scripts/pre-push-check.sh
@@ -8,41 +36,32 @@ bash scripts/pre-push-check.sh
 
 ---
 
-## Manual Quick Checks (3 commands):
+## Auto-Fix Common Issues
 
 ```bash
-# 1. Fix linting
-ruff check --fix src/ tests/
+# Fix import ordering and style
+ruff check --fix --unsafe-fixes src/ tests/
+
+# Fix code formatting
 black src/ tests/
 
-# 2. Run tests
-pytest tests/ -q
-
-# 3. Check YAML (if you modified workflows)
-yamllint .github/workflows/
+# Remove trailing spaces from YAML files
+sed -i 's/[[:space:]]*$//' .github/workflows/*.yml
 ```
 
 ---
 
-## Fix Common Issues:
+## Fix Reference
 
-| Issue | Fix |
-|-------|-----|
+| Issue | Fix Command |
+|---|---|
 | Import ordering | `ruff check --fix src/ tests/` |
 | Code formatting | `black src/ tests/` |
 | Trailing spaces in YAML | `sed -i 's/[[:space:]]*$//' .github/workflows/*.yml` |
-| Test import errors | Add `PYTHONPATH=src` before pytest |
+| Test import errors | Verify `PYTHONPATH=src` (set in `pyproject.toml`) |
 
 ---
 
-## Full Documentation:
+## Full Documentation
 
-See `docs/LOCAL_TESTING.md` for complete guide.
-
----
-
-## Golden Rule:
-
-**If it doesn't pass locally, it won't pass in CI.**
-
-Don't push until all checks are green! ✅
+See [Local Testing Guide](local-testing.md) for the complete guide, including the pre-push script and troubleshooting tips.

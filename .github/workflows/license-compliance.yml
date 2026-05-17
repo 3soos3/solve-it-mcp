@@ -1,7 +1,6 @@
 name: License Compliance Check
 
 on:
-  pull_request:
   push:
     branches: [main]
   schedule:
@@ -30,6 +29,9 @@ jobs:
             dependencies:
               - 'requirements.txt'
               - 'pyproject.toml'
+              - 'Dockerfile'
+              - 'Dockerfile.live'
+              - 'Dockerfile.release'
               - '.github/workflows/license-compliance.yml'
 
   check-licenses:

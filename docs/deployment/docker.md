@@ -1,138 +1,91 @@
-# Docker Deployment Guide - SOLVE-IT MCP Server
+# Docker Deployment
 
-This guide covers running the SOLVE-IT MCP Server using Docker and Docker Compose.
-
-## Table of Contents
-
-- [Quick Start](#quick-start)
-- [Docker Images](#docker-images)
-- [Transport Modes](#transport-modes)
-- [Configuration](#configuration)
-- [Docker Compose](#docker-compose)
-- [Building Images](#building-images)
-- [Troubleshooting](#troubleshooting)
-- [Security](#security)
-
----
+This guide covers running SOLVE-IT MCP Server with Docker and Docker Compose.
 
 ## Quick Start
 
-### Pull and Run (HTTP Mode)
-
 ```bash
-# Pull the latest image
 docker pull 3soos3/solve-it-mcp:latest
 
-# Run in HTTP mode (for Kubernetes/web clients)
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
   3soos3/solve-it-mcp:latest
 
-# Test the server (Kubernetes standard endpoint)
 curl http://localhost:8000/healthz
-```
-
-### Run with Docker Compose
-
-```bash
-# Production mode (HTTP transport)
-docker-compose up -d
-
-# Development mode (STDIO transport with volume mounts)
-docker-compose -f docker-compose.dev.yml up
 ```
 
 ---
 
-## Docker Images
+## Image Types
 
-### Available Registries
+Three image types are published, differing in how SOLVE-IT data is sourced and when.
 
-Images are published to **two registries** with different purposes:
+| | `:live` | `:latest` | `:release` |
+|---|---|---|---|
+| **Data source** | Fetched from URL at startup | SOLVE-IT `main` SHA baked in at build | Official SOLVE-IT release baked in at build |
+| **Data version** | Always latest | Changes with each SOLVE-IT commit | Pinned to a specific release (e.g. `v2025-10`) |
+| **`FORENSIC_METADATA`** | `false` | `false` | `true` |
+| **Use case** | Always-current testing | Tracking SOLVE-IT main | Forensic casework, research, production |
 
-#### 🐳 **Docker Hub** (For General Users)
-- **Registry**: `docker.io/3soos3/solve-it-mcp`
-- **Purpose**: General use, easy deployment
-- **Tags**: Clean list (latest, sha-xxx, version tags only)
-- **Artifacts**: NO Cosign signatures/SBOM (keeps UI clean)
-- **Pull**: `docker pull 3soos3/solve-it-mcp:latest`
-- **Benefits**: No GitHub account needed, familiar to most developers, works everywhere
-- **Note**: Rate limits apply (100 pulls/6h for anonymous users)
+### Image Tag Format
 
-#### 📦 **GitHub Container Registry** (For CI/CD & Forensic Compliance)
-- **Registry**: `ghcr.io/3soos3/solve-it-mcp`
-- **Purpose**: CI/CD pipelines, forensic verification, compliance requirements
-- **Tags**: Full tag list + Cosign artifacts (.sig, .sbom, .att)
-- **Artifacts**: Cryptographic signatures and SBOM for verification
-- **Pull**: `docker pull ghcr.io/3soos3/solve-it-mcp:latest`
-- **Speed**: Fast (GitHub CDN), no rate limits for public packages
-- **Benefits**: Chain-of-custody verification, automated CI/CD workflows
+| Image | Tag format | Example |
+|---|---|---|
+| `:live` | `live-<mcp-sha>` | `live-abc1234` |
+| `:latest` | `<solve-it-sha>-<mcp-sha>` | `def5678-abc1234` |
+| `:release` | `<solve-it-release>-<mcp-sha>` | `v2025-10-abc1234` |
 
-**Which registry should I use?**
-- **Docker Hub**: General users, production deployments, ease of use
-- **GHCR**: CI/CD pipelines, security teams needing cryptographic verification, compliance audits
+!!! warning "Forensic use"
+    For forensic investigations or research requiring reproducibility, use `:release` images. The `:live` image fetches data fresh at startup — two containers started at different times may have different knowledge bases. See [FORENSIC_METADATA](../reference/environment-variables.md#forensic_metadata) for details.
 
-### Image Tags
+---
 
-Both registries have the same tags:
+## Registries
 
-| Tag | Description | Use Case |
-|-----|-------------|----------|
-| `latest` | Latest stable build | Production (auto-updates) |
-| `stable` | Manual stable marker | Production (manually marked as stable) |
-| `v0.2025-10-0.1.0` | Full version tag | Production (specific version) |
-| `sha-abc1234` | Git commit SHA | Reproducible builds, debugging |
+Images are published to two registries:
 
-**Note**: GHCR also includes `.sig` and `.sbom` artifacts (hidden in Docker Hub).
+### Docker Hub — `3soos3/solve-it-mcp`
 
-### Multi-Architecture Support
+For general use. No authentication required.
 
-Images are available for:
-- `linux/amd64` - Intel/AMD 64-bit (most common)
-- `linux/arm64` - ARM 64-bit (Apple Silicon, AWS Graviton)
-- `linux/arm/v7` - ARM 32-bit (Raspberry Pi)
+```bash
+docker pull 3soos3/solve-it-mcp:latest
+```
 
-Docker automatically pulls the correct architecture for your platform.
+Does **not** include Cosign signatures or SBOM attachments (keeps tag list clean).
 
-### Image Size
+### GHCR — `ghcr.io/3soos3/solve-it-mcp`
 
-- **Production image**: ~60 MB (multi-stage build, Alpine-optimized)
-- **Development image**: ~450 MB (includes dev tools)
+For CI/CD pipelines and forensic verification. Includes Cosign signatures, SBOM, and SLSA provenance.
+
+```bash
+docker pull ghcr.io/3soos3/solve-it-mcp:latest
+```
 
 ---
 
 ## Transport Modes
 
-The server supports two transport modes, controlled by the `MCP_TRANSPORT` environment variable.
+### HTTP Mode (default in Docker)
 
-### HTTP Mode (Default in Docker)
-
-Recommended for:
-- Kubernetes deployments
-- Web-based MCP clients
-- Load-balanced environments
-- Health check monitoring
+For Kubernetes, web clients, and load-balanced deployments.
 
 ```bash
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
-  -e HTTP_PORT=8000 \
   3soos3/solve-it-mcp:latest
 ```
 
-**Health Endpoints:**
-- `GET /healthz` - Liveness probe (Kubernetes standard)
-- `GET /readyz` - Readiness probe (Kubernetes standard)
-- `GET /health` - Legacy liveness probe (deprecated, use /healthz)
-- `GET /ready` - Legacy readiness probe (deprecated, use /readyz)
-- `POST /mcp/v1` - Main MCP endpoint (JSON or SSE)
+**Health endpoints:**
+
+- `GET /healthz` — liveness probe (primary)
+- `GET /readyz` — readiness probe (primary)
+- `GET /health` — legacy alias (deprecated)
+- `GET /ready` — legacy alias (deprecated)
 
 ### STDIO Mode
 
-Recommended for:
-- MCP clients (like Claude Desktop)
-- Direct process communication
-- Local development
+For desktop MCP clients (Claude Desktop, Cline).
 
 ```bash
 docker run -i \
@@ -140,67 +93,28 @@ docker run -i \
   3soos3/solve-it-mcp:latest
 ```
 
-**Note**: STDIO mode requires `-i` (interactive) flag and doesn't expose HTTP endpoints.
+!!! note
+    STDIO mode requires the `-i` (interactive) flag. Health endpoints are not available in STDIO mode.
 
 ---
 
 ## Configuration
 
-### Environment Variables
+All configuration is via environment variables. See the [Environment Variables Reference](../reference/environment-variables.md) for the complete list.
 
-#### Core Settings
+### Common Examples
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MCP_TRANSPORT` | `http` | Transport mode: `http` or `stdio` |
-| `LOG_LEVEL` | `INFO` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
-| `LOG_FORMAT` | `json` | Log format: `json` or `text` |
-| `SOLVEIT_DATA_PATH` | `/app/solve-it-main/data` | Path to SOLVE-IT knowledge base |
-
-#### HTTP Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HTTP_HOST` | `0.0.0.0` | Bind address (use 0.0.0.0 for Docker) |
-| `HTTP_PORT` | `8000` | HTTP server port |
-| `HTTP_WORKERS` | `1` | Number of worker processes |
-| `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
-
-#### OpenTelemetry Settings
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OTEL_ENABLED` | `true` | Enable OpenTelemetry |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4317` | OTel collector endpoint |
-| `ENVIRONMENT` | `production` | Environment: `development`, `staging`, `production` |
-| `OTEL_TRACE_SAMPLE_RATE` | varies | Trace sampling rate (0.0-1.0) |
-
-**Sampling defaults:**
-- Development: 100% (1.0)
-- Staging: 50% (0.5)
-- Production: 10% (0.1)
-
-#### Kubernetes Metadata (Auto-injected)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `K8S_POD_NAME` | `unknown` | Pod name (from downward API) |
-| `K8S_NODE_NAME` | `unknown` | Node name (from downward API) |
-| `K8S_NAMESPACE` | `default` | Namespace (from downward API) |
-
-### Example Configurations
-
-#### Minimal Production
+**Minimal (no telemetry):**
 
 ```bash
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
-  -e LOG_LEVEL=INFO \
   -e OTEL_ENABLED=false \
+  -e LOG_FORMAT=text \
   3soos3/solve-it-mcp:latest
 ```
 
-#### Full Observability
+**With OpenTelemetry:**
 
 ```bash
 docker run -p 8000:8000 \
@@ -208,11 +122,10 @@ docker run -p 8000:8000 \
   -e OTEL_ENABLED=true \
   -e OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317 \
   -e ENVIRONMENT=production \
-  -e LOG_FORMAT=json \
   3soos3/solve-it-mcp:latest
 ```
 
-#### Development (STDIO)
+**Development (STDIO, debug logging):**
 
 ```bash
 docker run -i \
@@ -223,312 +136,37 @@ docker run -i \
   3soos3/solve-it-mcp:latest
 ```
 
+**Behind Traefik at domain root:**
+
+```bash
+docker run -p 8000:8000 \
+  -e MCP_TRANSPORT=http \
+  -e MCP_BASE_PATH=/ \
+  3soos3/solve-it-mcp:latest
+```
+
 ---
 
 ## Docker Compose
 
-### Production Setup
-
-**File**: `docker-compose.yml`
-
-```bash
-# Start services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f
-
-# Check health
-curl http://localhost:8000/health
-
-# Stop services
-docker-compose down
-```
-
-**Features:**
-- HTTP/SSE transport
-- JSON logging
-- OpenTelemetry enabled
-- Health checks
-- Resource limits (512MB memory, 1 CPU)
-- Non-root user
-- Auto-restart policy
-
-### Development Setup
-
-**File**: `docker-compose.dev.yml`
-
-```bash
-# Start development environment
-docker-compose -f docker-compose.dev.yml up
-
-# Run with volume mounts for hot-reload
-docker-compose -f docker-compose.dev.yml up
-```
-
-**Features:**
-- STDIO transport
-- Volume mounts for live code editing
-- DEBUG logging (text format)
-- OpenTelemetry disabled
-- Interactive mode
-- No auto-restart
-
-### Custom Compose Files
-
-Override specific settings by creating a `docker-compose.override.yml`:
-
 ```yaml
-version: '3.8'
 services:
-  solveit-mcp:
-    environment:
-      LOG_LEVEL: DEBUG
-      CORS_ORIGINS: https://myapp.com
+  solve-it-mcp:
+    image: 3soos3/solve-it-mcp:latest
     ports:
-      - "9000:8000"  # Use different port
-```
-
-Docker Compose automatically merges override files.
-
----
-
-## Building Images
-
-### Using the Build Script
-
-The repository includes a helper script for building multi-arch images:
-
-```bash
-# Build and push to Docker Hub
-./scripts/build-and-push.sh
-
-# Build locally (no push)
-./scripts/build-and-push.sh --no-push
-
-# Build for specific platform
-./scripts/build-and-push.sh --platform linux/amd64 --no-push
-
-# Build and tag as latest
-./scripts/build-and-push.sh --latest
-
-# Add custom tags
-./scripts/build-and-push.sh --tag v1.0.0 --tag production
-```
-
-### Manual Build (Single Architecture)
-
-```bash
-# Build for local platform
-docker build -t solve-it-mcp:local .
-
-# Build with custom SOLVE-IT version
-docker build \
-  --build-arg SOLVE_IT_VERSION=v0.2025-10 \
-  -t solve-it-mcp:0.2025-10 .
-
-# Build using local SOLVE-IT data
-docker build \
-  --build-arg SOLVE_IT_SOURCE=local \
-  -t solve-it-mcp:local-data .
-```
-
-**Note**: For local SOLVE-IT data, place the dataset in `./solve-it-main/` before building.
-
-### Multi-Architecture Build
-
-Requires Docker Buildx:
-
-```bash
-# Create builder
-docker buildx create --name mcp-builder --use
-
-# Build for all platforms (example pushes to GHCR for CI/CD)
-docker buildx build \
-  --platform linux/amd64,linux/arm64,linux/arm/v7 \
-  --tag ghcr.io/3soos3/solve-it-mcp:latest \
-  --tag 3soos3/solve-it-mcp:latest \
-  --push \
-  .
-```
-
-### Development Image
-
-```bash
-# Build development image
-docker build -f Dockerfile.dev -t solve-it-mcp:dev .
-
-# Run with volume mounts
-docker run -i \
-  -v $(pwd)/src:/app/src:ro \
-  solve-it-mcp:dev
-```
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-#### 1. Container Exits Immediately
-
-**Problem**: Container starts but exits right away.
-
-**Solution**: Check logs:
-```bash
-docker logs <container-id>
-
-# Or with compose
-docker-compose logs
-```
-
-Common causes:
-- Invalid transport mode (use `http` or `stdio`)
-- Missing required environment variables
-- Port already in use
-
-#### 2. Health Check Failing
-
-**Problem**: `/healthz` endpoint returns errors or timeouts.
-
-**Solution**:
-```bash
-# Check if HTTP mode is enabled
-docker exec <container-id> env | grep MCP_TRANSPORT
-
-# Should show: MCP_TRANSPORT=http
-
-# Test from inside container (Kubernetes standard)
-docker exec <container-id> curl -f http://localhost:8000/healthz
-
-# Or test legacy endpoint (deprecated)
-docker exec <container-id> curl -f http://localhost:8000/health
-```
-
-Health checks only work in HTTP mode. In STDIO mode, health checks are disabled.
-
-**Note**: Use `/healthz` and `/readyz` (Kubernetes standard) instead of `/health` and `/ready` (deprecated).
-
-#### 3. Permission Denied
-
-**Problem**: Cannot write to mounted volumes.
-
-**Solution**: The container runs as UID 1000. Ensure your volume directories have correct permissions:
-```bash
-# Fix permissions
-sudo chown -R 1000:1000 ./local-data/
-
-# Or run with current user
-docker run --user $(id -u):$(id -g) ...
-```
-
-#### 4. SOLVE-IT Data Not Found
-
-**Problem**: Server can't load knowledge base data.
-
-**Solution**: The data is baked into the image. If using custom data:
-```bash
-# Verify data exists in container
-docker exec <container-id> ls -la /app/solve-it-main/data/
-
-# Should show: techniques.json, weaknesses.json, mitigations.json
-
-# If missing, rebuild image or mount data:
-docker run -v $(pwd)/solve-it-main:/app/solve-it-main:ro ...
-```
-
-#### 5. Multi-arch Build Fails
-
-**Problem**: `docker buildx build` fails or is slow.
-
-**Solution**:
-```bash
-# Install QEMU for cross-platform builds
-docker run --privileged --rm tonistiigi/binfmt --install all
-
-# Use buildkit cache
-docker buildx build --cache-from type=registry,ref=ghcr.io/3soos3/solve-it-mcp:buildcache ...
-```
-
-For local testing, build only your platform:
-```bash
-./scripts/build-and-push.sh --platform linux/amd64 --no-push
-```
-
-### Debugging
-
-#### Enable Debug Logging
-
-```bash
-docker run -e LOG_LEVEL=DEBUG -e LOG_FORMAT=text ...
-```
-
-#### Access Container Shell
-
-```bash
-# Running container
-docker exec -it <container-id> /bin/bash
-
-# New container
-docker run -it --entrypoint /bin/bash 3soos3/solve-it-mcp:latest
-```
-
-#### Inspect Image Layers
-
-```bash
-# View image history
-docker history 3soos3/solve-it-mcp:latest
-
-# Inspect image metadata
-docker inspect 3soos3/solve-it-mcp:latest
-```
-
----
-
-## Security
-
-### Image Security
-
-✅ **Non-root user**: Container runs as UID 1000 (mcpuser)  
-✅ **Minimal base image**: Python 3.12-slim (reduces attack surface)  
-✅ **Multi-stage build**: Build tools excluded from runtime  
-✅ **Vulnerability scanning**: Trivy scanning in CI/CD  
-✅ **No secrets**: No hardcoded credentials or tokens  
-✅ **Read-only filesystem**: Compatible with read-only root (optional)
-
-### Vulnerability Scanning
-
-Images are automatically scanned in CI/CD. Scan locally:
-
-```bash
-# Install Trivy
-brew install aquasecurity/trivy/trivy  # macOS
-# or: apt-get install trivy             # Debian/Ubuntu
-
-# Scan image
-trivy image 3soos3/solve-it-mcp:latest
-
-# Scan for CRITICAL/HIGH only
-trivy image --severity CRITICAL,HIGH 3soos3/solve-it-mcp:latest
-```
-
-### Runtime Security
-
-**Docker Run Flags:**
-```bash
-docker run \
-  --security-opt=no-new-privileges:true \
-  --cap-drop=ALL \
-  --read-only \
-  --tmpfs /tmp \
-  -u 1000:1000 \
-  3soos3/solve-it-mcp:latest
-```
-
-**Docker Compose Security:**
-```yaml
-services:
-  solveit-mcp:
+      - "8000:8000"
+    environment:
+      - MCP_TRANSPORT=http
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - OTEL_ENABLED=false
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -539,60 +177,85 @@ services:
     user: "1000:1000"
 ```
 
-### Network Security
+---
 
-**Limit exposed ports:**
+## Multi-Architecture Support
+
+All images are built for:
+
+- `linux/amd64` — Intel/AMD 64-bit
+- `linux/arm64` — ARM 64-bit (Apple Silicon, AWS Graviton)
+- `linux/arm/v7` — ARM 32-bit (Raspberry Pi)
+
+Docker pulls the correct architecture automatically.
+
+---
+
+## Building Locally
+
+### Single Architecture
+
 ```bash
-# Bind to localhost only
-docker run -p 127.0.0.1:8000:8000 ...
+docker build -t solve-it-mcp:local .
+
+# With a specific SOLVE-IT version
+docker build \
+  --build-arg SOLVE_IT_VERSION=v0.2025-10 \
+  -t solve-it-mcp:0.2025-10 .
 ```
 
-**Configure CORS:**
-```bash
-# Production: specific origins only
-docker run -e CORS_ORIGINS=https://app.example.com,https://dashboard.example.com ...
+### Multi-Architecture
 
-# Development: allow all
-docker run -e CORS_ORIGINS=* ...
+```bash
+docker buildx create --name mcp-builder --use
+
+docker buildx build \
+  --platform linux/amd64,linux/arm64,linux/arm/v7 \
+  --tag 3soos3/solve-it-mcp:local \
+  --push \
+  .
 ```
 
-### Secrets Management
+---
 
-**Never pass secrets via environment variables in production.**
+## Security
 
-Use Docker secrets or volume mounts:
+### Image Security
+
+- Non-root user: `mcpuser` (UID 1000)
+- Base image: Python 3.12-Alpine (minimal attack surface)
+- Multi-stage build: build tools excluded from runtime image
+- Trivy vulnerability scanning in CI/CD
+
+### Hardened Runtime Flags
 
 ```bash
-# Docker secrets (Swarm)
-echo "my-secret-token" | docker secret create mcp_token -
-docker service create --secret mcp_token ...
+docker run \
+  --security-opt=no-new-privileges:true \
+  --cap-drop=ALL \
+  --read-only \
+  --tmpfs /tmp \
+  -u 1000:1000 \
+  3soos3/solve-it-mcp:latest
+```
 
-# Volume mount (single container)
-docker run -v /path/to/secrets:/secrets:ro ...
+### Vulnerability Scanning
+
+```bash
+# Install Trivy
+brew install aquasecurity/trivy/trivy   # macOS
+# apt-get install trivy                 # Debian/Ubuntu
+
+trivy image --severity CRITICAL,HIGH 3soos3/solve-it-mcp:latest
 ```
 
 ---
 
 ## Forensic Verification (GHCR Only)
 
-For forensic investigations requiring chain-of-custody and cryptographic verification, use GHCR images with Cosign.
-
-### Prerequisites
-
-Install Cosign:
-```bash
-# macOS
-brew install cosign
-
-# Linux
-curl -O -L "https://github.com/sigstore/cosign/releases/latest/download/cosign-linux-amd64"
-chmod +x cosign-linux-amd64
-sudo mv cosign-linux-amd64 /usr/local/bin/cosign
-```
+GHCR images include cryptographic signatures, SBOM, and SLSA provenance.
 
 ### Verify Image Signature
-
-Proves the image was built by the official GitHub Actions workflow:
 
 ```bash
 cosign verify ghcr.io/3soos3/solve-it-mcp:latest \
@@ -600,60 +263,58 @@ cosign verify ghcr.io/3soos3/solve-it-mcp:latest \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 ```
 
-**Output**:
-```json
-{
-  "payloadType": "application/vnd.dev.cosign.simplesigning.v1+json",
-  "payload": "...",
-  "signatures": [...]
-}
-```
-
 ### Download SBOM
 
-See all dependencies (Software Bill of Materials):
-
 ```bash
-# Download SBOM in SPDX format
 cosign download sbom ghcr.io/3soos3/solve-it-mcp:latest > sbom.spdx.json
 
-# View dependencies
-jq '.packages[] | {name: .name, version: .versionInfo, license: .licenseDeclared}' sbom.spdx.json
+# Inspect dependencies
+jq '.packages[] | {name: .name, version: .versionInfo}' sbom.spdx.json
 ```
 
 ### View Build Provenance
-
-See source commit, workflow, builder identity:
 
 ```bash
 cosign download attestation ghcr.io/3soos3/solve-it-mcp:latest | jq
 ```
 
-**Includes**:
-- Source repository and commit SHA
-- GitHub Actions workflow that built the image
-- Build timestamp and environment
-- Cryptographic proof of authenticity
+!!! note
+    Docker Hub images do **not** include Cosign signatures or SBOM to keep the tag list clean. Use GHCR images for forensic verification and compliance.
 
-### Why Not Docker Hub?
+---
 
-Docker Hub images do **NOT** include Cosign signatures/SBOM attachments to keep the tag list clean (no `.sig`/`.sbom` clutter in UI). For forensic verification, **always use GHCR**.
+## Troubleshooting
+
+### Container Exits Immediately
+
+```bash
+docker logs <container-id>
+```
+
+Common causes: invalid `MCP_TRANSPORT` value, port already in use.
+
+### Health Check Failing
+
+```bash
+# Check transport mode
+docker exec <container-id> env | grep MCP_TRANSPORT
+
+# Test endpoint
+docker exec <container-id> wget -qO- http://localhost:8000/healthz
+```
+
+### Permission Denied on Volume Mount
+
+The container runs as UID 1000. Fix volume permissions:
+
+```bash
+sudo chown -R 1000:1000 ./local-data/
+```
 
 ---
 
 ## Next Steps
 
-- **Kubernetes Deployment**: See [Kubernetes Guide](kubernetes.md)
-- **Helm Charts**: Visit [3soos3/solveit-charts](https://github.com/3soos3/solveit-charts)
-- **CI/CD**: Check `.github/workflows/docker-publish.yml` for automated builds
-- **Development**: See [Testing Guide](../development/testing-guide.md)
-
----
-
-## Resources
-
-- **Docker Hub**: https://hub.docker.com/r/3soos3/solve-it-mcp
-- **GitHub Container Registry**: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
-- **GitHub**: https://github.com/3soos3/solve-it-mcp
-- **SOLVE-IT Dataset**: https://github.com/SOLVE-IT-DF/solve-it
-- **MCP Specification**: https://modelcontextprotocol.io
+- [Kubernetes Deployment](kubernetes.md) — production Kubernetes with Helm
+- [Environment Variables Reference](../reference/environment-variables.md) — complete configuration reference
+- [Security Model](../architecture/security-model.md) — chain-of-custody and verification details

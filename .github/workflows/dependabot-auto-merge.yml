@@ -52,6 +52,33 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
+      - name: Check update is safe to auto-merge
+        id: safety
+        if: steps.pr_type.outputs.type == 'dependabot'
+        run: |
+          # Only allow patch updates
+          UPDATE_TYPE="${{ steps.metadata.outputs.update-type }}"
+          PACKAGE="${{ steps.metadata.outputs.dependency-names }}"
+
+          BLOCKED_PACKAGES="mcp pydantic starlette uvicorn anyio"
+
+          for pkg in $BLOCKED_PACKAGES; do
+            if echo "$PACKAGE" | grep -qi "^${pkg}$"; then
+              echo "::warning::Blocking auto-merge of core package: ${PACKAGE}"
+              echo "safe=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          done
+
+          if [ "$UPDATE_TYPE" != "version-update:semver-patch" ]; then
+            echo "::warning::Blocking non-patch update: ${UPDATE_TYPE} for ${PACKAGE}"
+            echo "safe=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "safe=true" >> $GITHUB_OUTPUT
+          echo "::notice::Safe to auto-merge: ${PACKAGE} (${UPDATE_TYPE})"
+
       - name: Check if PR has hold label
         id: check_hold
         env:
@@ -131,7 +158,8 @@ jobs:
       - name: Wait for required checks
         if: |
           steps.check_hold.outputs.hold == 'false' &&
-          steps.safety_check.outputs.safe == 'true'
+          steps.safety_check.outputs.safe == 'true' &&
+          (steps.safety.outputs.safe == 'true' || steps.pr_type.outputs.type == 'notice')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_TYPE: ${{ steps.pr_type.outputs.type }}
@@ -219,7 +247,8 @@ jobs:
       - name: Check PAT availability
         if: |
           steps.check_hold.outputs.hold == 'false' &&
-          steps.safety_check.outputs.safe == 'true'
+          steps.safety_check.outputs.safe == 'true' &&
+          (steps.safety.outputs.safe == 'true' || steps.pr_type.outputs.type == 'notice')
         run: |
           if [ -z "${{ secrets.PAT }}" ] && [ -z "${{ secrets.BOT_TOKEN }}" ]; then
             echo "::warning::PAT or BOT_TOKEN not configured - will use GITHUB_TOKEN"
@@ -232,7 +261,8 @@ jobs:
       - name: Approve and enable auto-merge
         if: |
           steps.check_hold.outputs.hold == 'false' &&
-          steps.safety_check.outputs.safe == 'true'
+          steps.safety_check.outputs.safe == 'true' &&
+          (steps.safety.outputs.safe == 'true' || steps.pr_type.outputs.type == 'notice')
         env:
           GH_TOKEN: ${{ secrets.PAT || secrets.BOT_TOKEN || secrets.GITHUB_TOKEN }}
         run: |

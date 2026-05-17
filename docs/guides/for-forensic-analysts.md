@@ -1,193 +1,169 @@
-# SOLVE-IT MCP Server for Forensic Analysts
+# For Forensic Analysts
 
-This guide is specifically designed for digital forensics professionals who want to leverage SOLVE-IT MCP Server in their investigations.
+This guide is for digital forensics professionals using the SOLVE-IT MCP Server in casework and investigations.
 
 ## Overview
 
-As a forensic analyst, you're often faced with:
+SOLVE-IT MCP Server gives you instant programmatic access to a structured knowledge base of forensic techniques, their known weaknesses, and recommended mitigations. It is designed to support:
 
-- **Complex evidence collection**: Choosing the right techniques for specific scenarios
-- **Methodology validation**: Ensuring your investigation methods are sound
-- **Weakness awareness**: Understanding limitations of your chosen techniques
-- **Documentation requirements**: Providing detailed justification for your methods
+- **Technique selection**: Find the right method for a given evidence type or scenario
+- **Methodology validation**: Identify and document the limitations of your chosen techniques
+- **Report documentation**: Reference techniques, weaknesses, and mitigations by stable ID (DFT-XXXX, DFW-XXXX, DFM-XXXX)
+- **Defensibility**: Demonstrate systematic, documented decision-making
 
-SOLVE-IT MCP Server helps by providing instant access to a comprehensive knowledge base of forensic techniques, their weaknesses, and mitigations.
-
-## Quick Start for Analysts
-
-### Installation (2 minutes)
-
-The fastest way to get started:
+## Quick Start
 
 ```bash
-# Pull and run the Docker image
 docker pull 3soos3/solve-it-mcp:latest
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
-  -e HTTP_PORT=8000 \
   3soos3/solve-it-mcp:latest
 ```
 
-### Verify Installation
+Verify: `curl http://localhost:8000/healthz`
 
-```bash
-curl http://localhost:8000/healthz
-```
-
-You're ready when you see: `{"status":"healthy"}`
-
-## Common Investigation Workflows
+## Investigation Workflows
 
 ### Workflow 1: Finding the Right Technique
 
 **Scenario**: You've seized a network router and need to determine the best approach for evidence extraction.
 
-#### Step 1: Search for Relevant Techniques
+**Step 1 — Search for relevant techniques:**
 
 ```bash
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 1,
     "method": "tools/call",
     "params": {
       "name": "search",
       "arguments": {
-        "keywords": "network device extraction",
+        "keywords": "network device",
         "item_types": ["techniques"]
       }
     }
   }'
 ```
 
-#### Step 2: Review Technique Details
+**Step 2 — Review a technique in detail:**
 
 ```bash
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 2,
     "method": "tools/call",
     "params": {
       "name": "get_technique_details",
-      "arguments": {
-        "technique_id": "DFT-1042"
-      }
+      "arguments": {"technique_id": "DFT-1042"}
     }
   }'
 ```
 
-#### Step 3: Identify Potential Weaknesses
+**Step 3 — Identify potential weaknesses:**
 
 ```bash
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 3,
     "method": "tools/call",
     "params": {
       "name": "get_weaknesses_for_technique",
-      "arguments": {
-        "technique_id": "DFT-1042"
-      }
+      "arguments": {"technique_id": "DFT-1042"}
     }
   }'
 ```
 
-#### Step 4: Find Mitigations
+**Step 4 — Find mitigations for a specific weakness:**
 
 ```bash
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 4,
     "method": "tools/call",
     "params": {
       "name": "get_mitigations_for_weakness",
-      "arguments": {
-        "weakness_id": "DFW-1015"
-      }
+      "arguments": {"weakness_id": "DFW-1015"}
     }
   }'
 ```
 
-### Workflow 2: Validating Your Methodology
+### Workflow 2: Investigation Planning by Objective
 
-**Scenario**: You're preparing expert testimony and need to document the strengths and limitations of your chosen methods.
+**Scenario**: Planning a mobile device investigation and ensuring comprehensive coverage.
 
-#### Document Your Approach
+**Step 1 — List available investigation objectives:**
 
-1. **List all techniques used** in your investigation
-2. **Identify known weaknesses** for each technique
-3. **Document mitigations** you've applied
-4. **Cross-reference** with investigation objectives
+```bash
+curl -X POST http://localhost:8000/mcp/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{
+    "jsonrpc": "2.0", "id": 1,
+    "method": "tools/call",
+    "params": {"name": "list_objectives", "arguments": {}}
+  }'
+```
 
-#### Example Investigation Report Section
+**Step 2 — Get all techniques for a specific objective:**
+
+```bash
+curl -X POST http://localhost:8000/mcp/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{
+    "jsonrpc": "2.0", "id": 2,
+    "method": "tools/call",
+    "params": {
+      "name": "get_techniques_for_objective",
+      "arguments": {"objective_name": "Mobile Device Forensics"}
+    }
+  }'
+```
+
+### Workflow 3: Methodology Validation
+
+**Scenario**: Preparing expert testimony and needing to document strengths and limitations.
+
+1. List all techniques used in the investigation
+2. Call `get_weaknesses_for_technique` for each
+3. Call `get_mitigations_for_weakness` for each weakness
+4. Document the mitigations you implemented and why
+
+**Example methodology section for a report:**
 
 ```markdown
 ## Investigation Methodology
 
-### Technique: Network Traffic Analysis (DFT-1023)
+### Network Traffic Analysis (DFT-1023)
 
-**Purpose**: Identify suspicious network communications
+**Purpose**: Identify suspicious network communications.
 
-**Weaknesses Considered**:
+**Weaknesses considered**:
 - DFW-1008: Encrypted traffic may not be fully analyzable
-- DFW-1012: Incomplete packet capture due to network tap limitations
+- DFW-1012: Incomplete packet capture due to tap limitations
 
-**Mitigations Applied**:
+**Mitigations applied**:
 - DFM-1004: Captured full packet headers and metadata
 - DFM-1009: Cross-referenced with firewall logs for context
 - DFM-1015: Documented capture timestamps and chain of custody
 
-**Justification**: Despite acknowledged limitations, this technique
-provided crucial evidence of C2 communication patterns that
-corroborated findings from endpoint analysis.
+**Justification**: Despite acknowledged limitations, this technique provided
+crucial evidence of C2 communication patterns corroborating endpoint findings.
 ```
 
-### Workflow 3: Investigation Planning
+## Claude Desktop Integration
 
-**Scenario**: You're planning a mobile device investigation and want to ensure comprehensive coverage.
+For interactive, natural-language analysis during investigations:
 
-#### Step 1: List All Relevant Objectives
-
-```bash
-curl -X POST http://localhost:8000/mcp/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "tools/call",
-    "params": {
-      "name": "list_objectives",
-      "arguments": {}
-    }
-  }'
-```
-
-#### Step 2: Get Techniques for Your Objective
-
-```bash
-curl -X POST http://localhost:8000/mcp/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "tools/call",
-    "params": {
-      "name": "get_techniques_for_objective",
-      "arguments": {
-        "objective_name": "Mobile Device Forensics"
-      }
-    }
-  }'
-```
-
-#### Step 3: Create Investigation Checklist
-
-Use the returned techniques to build a comprehensive investigation plan.
-
-## Integration with MCP Clients
-
-### Claude Desktop Integration
-
-For interactive analysis during investigations:
-
-1. **Install Docker** (if not already installed)
-
-2. **Configure Claude Desktop** (`claude_desktop_config.json`):
+Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -204,283 +180,114 @@ For interactive analysis during investigations:
 }
 ```
 
-3. **Restart Claude Desktop**
+Restart Claude Desktop. You can then ask questions naturally:
 
-4. **Ask questions naturally**:
-   - "What techniques are available for memory forensics?"
-   - "What are the weaknesses of timeline analysis?"
-   - "Show me mitigations for hash collision issues"
+- "What techniques are available for memory forensics?"
+- "What are the weaknesses of timeline analysis?"
+- "Show me mitigations for DFW-1008"
+- "Help me write the methodology section of my report covering DFT-1023"
 
-### Benefits for Analysts
+## Offline and Field Use
 
-- **Natural language queries**: No need to remember exact technique IDs
-- **Context-aware**: Claude can help interpret results in context of your investigation
-- **Report drafting**: Use Claude to help write methodology sections
-- **Training**: Ask "what if" questions to explore scenarios
+The `:latest` and `:release` Docker images include the complete SOLVE-IT database. No internet connection is required after the initial pull, making the server suitable for:
 
-## Practical Use Cases
+- Isolated forensic workstations
+- Air-gapped environments
+- Field laptop deployments
 
-### Use Case 1: Chain of Custody Documentation
-
-**Challenge**: Documenting forensic soundness of your methods
-
-**Solution**: Use SOLVE-IT to:
-
-1. Identify all techniques applied
-2. Document known weaknesses
-3. Show mitigations implemented
-4. Demonstrate forensic rigor
-
-**Example Output for Court**:
-
-> "The investigation employed SOLVE-IT Technique DFT-1055 (Disk Imaging) 
-> with documented awareness of Weakness DFW-1032 (potential for hardware 
-> read errors). Mitigation DFM-1041 (verification hashing at multiple stages) 
-> was implemented to ensure data integrity throughout the imaging process."
-
-### Use Case 2: Peer Review Preparation
-
-**Challenge**: Preparing evidence for peer review or opposing expert examination
-
-**Solution**:
-
-1. Document every technique used
-2. Pre-identify weaknesses that might be challenged
-3. Prepare justifications for mitigation choices
-4. Demonstrate awareness of methodology limitations
-
-### Use Case 3: Training and Skill Development
-
-**Challenge**: Staying current with forensic methodologies
-
-**Solution**:
-
-- Explore new techniques in your domain
-- Understand relationships between techniques
-- Learn about weaknesses you may not have considered
-- Discover mitigation strategies used by peers
-
-**Example Training Exercise**:
+For field use with reduced resource consumption:
 
 ```bash
-# Explore all timeline analysis techniques
-curl -X POST http://localhost:8000/mcp/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "tools/call",
-    "params": {
-      "name": "search",
-      "arguments": {
-        "keywords": "timeline",
-        "item_types": ["techniques"]
-      }
-    }
-  }'
-```
-
-### Use Case 4: Cross-Platform Investigations
-
-**Challenge**: Investigating across multiple platforms (Windows, Linux, mobile, cloud)
-
-**Solution**: Use objectives to organize multi-platform approach
-
-```bash
-# Get techniques for cloud forensics
-curl -X POST http://localhost:8000/mcp/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "tools/call",
-    "params": {
-      "name": "get_techniques_for_objective",
-      "arguments": {
-        "objective_name": "Cloud Forensics"
-      }
-    }
-  }'
-```
-
-## Field Work Considerations
-
-### Mobile Access
-
-For field investigations, use the server on a laptop:
-
-```bash
-# Run with minimal logging for performance
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=http \
   -e LOG_LEVEL=WARNING \
-  -e HTTP_PORT=8000 \
+  -e OTEL_ENABLED=false \
   3soos3/solve-it-mcp:latest
 ```
 
-### Offline Access
+!!! warning "Do not use the `:live` image for forensic casework"
+    The `:live` image fetches data at startup from a remote URL. Two containers started at different times may query different knowledge bases. For forensic reproducibility, always use `:release` images where the data is pinned at build time. See [Docker Images](../deployment/docker.md#image-types) for details.
 
-The Docker image includes the complete SOLVE-IT database:
+## Forensic Reproducibility
 
-- No internet required after initial pull
-- All data embedded in the image
-- Works on isolated forensic workstations
+For casework requiring a documented, citable record of which software version produced a result:
 
-### Performance Optimization
+1. Use a `:release` image (e.g. `ghcr.io/3soos3/solve-it-mcp:v2025-10-abc1234`)
+2. Enable `FORENSIC_METADATA=true` — every tool response will include a `_meta` block with the image tag and a UTC timestamp
+3. Verify the image signature with Cosign (GHCR images only):
 
-For faster queries on resource-constrained systems:
-
-```yaml
-# docker-compose.yml for field laptop
-version: '3.8'
-services:
-  solve-it-mcp:
-    image: 3soos3/solve-it-mcp:latest
-    ports:
-      - "8000:8000"
-    environment:
-      - MCP_TRANSPORT=http
-      - LOG_LEVEL=ERROR
-      - OTEL_ENABLED=false  # Disable telemetry
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
+```bash
+cosign verify ghcr.io/3soos3/solve-it-mcp:v2025-10-abc1234 \
+  --certificate-identity-regexp=github \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 ```
 
-## Best Practices
+## Automated Report Generation
 
-### Documentation
-
-1. **Reference Technique IDs** in your reports (e.g., "DFT-1023: Network Traffic Analysis")
-2. **Document weaknesses** you identified and considered
-3. **Justify mitigation choices** explicitly
-4. **Maintain consistency** across investigations
-
-### Quality Assurance
-
-1. **Cross-check techniques** with case requirements
-2. **Review weaknesses** before finalizing methodology
-3. **Peer review** your technique selections
-4. **Update documentation** as new techniques emerge
-
-### Defensibility
-
-1. **Show awareness** of limitations
-2. **Document alternatives** considered
-3. **Justify selections** based on case specifics
-4. **Demonstrate rigor** through systematic approach
-
-## Common Questions
-
-### Q: Can I use SOLVE-IT references in court?
-
-**A**: Yes, SOLVE-IT is a published, peer-reviewed framework. Cite it as:
-
-> "SOLVE-IT Digital Forensics Framework (SOLVE-IT-DF/solve-it, 
-> https://github.com/SOLVE-IT-DF/solve-it)"
-
-Always consult with your legal team regarding expert testimony requirements in your jurisdiction.
-
-### Q: How often is the knowledge base updated?
-
-**A**: The SOLVE-IT framework is actively maintained. Check for:
-
-- New Docker image releases (monthly rebuilds)
-- SOLVE-IT repository updates
-- Release notes for version-specific changes
-
-### Q: Can I add custom techniques for my organization?
-
-**A**: The current implementation uses the official SOLVE-IT data. For custom extensions:
-
-1. Fork the SOLVE-IT repository
-2. Add your custom techniques
-3. Rebuild the Docker image with your data
-4. See [Testing Guide](../development/testing-guide.md) to validate your changes
-
-### Q: Is this suitable for sensitive investigations?
-
-**A**: Yes, with proper deployment:
-
-- **Runs locally**: No internet required
-- **No data exfiltration**: All processing is local
-- **Audit trail**: Full logging available
-- **Isolated deployment**: Can run on air-gapped systems
-
-See [Security Model](../architecture/security-model.md) for details.
-
-## Integration Examples
-
-### Example: Automated Report Generation
+Example script to generate a methodology section for a list of techniques:
 
 ```python
 #!/usr/bin/env python3
 import requests
 import json
 
-def get_technique_details(tech_id):
-    """Get full details for a technique"""
-    response = requests.post(
-        "http://localhost:8000/mcp/v1/messages",
-        json={
-            "method": "tools/call",
-            "params": {
-                "name": "get_technique_details",
-                "arguments": {"technique_id": tech_id}
-            }
-        }
-    )
-    return response.json()
+SERVER = "http://localhost:8000/mcp/v1/messages"
+HEADERS = {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream"
+}
 
-def generate_methodology_section(techniques):
-    """Generate methodology section for report"""
-    report = "## Investigation Methodology\n\n"
-    
-    for tech_id in techniques:
-        details = get_technique_details(tech_id)
-        # Parse and format details
-        report += f"### Technique: {tech_id}\n"
-        # Add details, weaknesses, mitigations
-        
-    return report
+def call_tool(name, arguments):
+    r = requests.post(SERVER, headers=HEADERS, json={
+        "jsonrpc": "2.0", "id": 1,
+        "method": "tools/call",
+        "params": {"name": name, "arguments": arguments}
+    })
+    r.raise_for_status()
+    # SSE response: extract first data line
+    for line in r.text.splitlines():
+        if line.startswith("data:"):
+            return json.loads(line[5:].strip())
+    return {}
 
-# Usage
+def technique_summary(tech_id):
+    details = call_tool("get_technique_details", {"technique_id": tech_id})
+    weaknesses = call_tool("get_weaknesses_for_technique", {"technique_id": tech_id})
+    return {"id": tech_id, "details": details, "weaknesses": weaknesses}
+
 techniques_used = ["DFT-1023", "DFT-1042", "DFT-1055"]
-methodology = generate_methodology_section(techniques_used)
-print(methodology)
+for tid in techniques_used:
+    summary = technique_summary(tid)
+    print(f"### {summary['id']}")
+    print(json.dumps(summary, indent=2))
 ```
 
-### Example: Technique Validation Script
+## Best Practices
 
-```bash
-#!/bin/bash
-# validate-investigation.sh
-# Validates that all techniques used have documented mitigations
+**Documentation**
 
-TECHNIQUES=("DFT-1023" "DFT-1042" "DFT-1055")
+- Reference technique IDs in reports (e.g. "Network Traffic Analysis (DFT-1023)")
+- Document weaknesses you identified and considered
+- Justify mitigation choices explicitly
+- Use consistent IDs across the investigation
 
-for tech in "${TECHNIQUES[@]}"; do
-    echo "Checking $tech..."
-    
-    # Get weaknesses
-    weaknesses=$(curl -s -X POST http://localhost:8000/mcp/v1/messages \
-        -H "Content-Type: application/json" \
-        -d "{\"method\":\"tools/call\",\"params\":{\"name\":\"get_weaknesses_for_technique\",\"arguments\":{\"technique_id\":\"$tech\"}}}")
-    
-    # Check if mitigations exist for each weakness
-    # ... validation logic ...
-    
-    echo "$tech: Validated ✓"
-done
-```
+**Defensibility**
+
+- Show awareness of limitations before being challenged on them
+- Document alternatives considered and why you chose otherwise
+- Demonstrate a systematic, reproducible approach
+
+**Court Reference**
+
+SOLVE-IT is a published, peer-reviewed framework. To cite it:
+
+> "SOLVE-IT Digital Forensics Framework (SOLVE-IT-DF/solve-it, https://github.com/SOLVE-IT-DF/solve-it)"
+
+Always consult your legal team regarding expert testimony requirements in your jurisdiction.
 
 ## Next Steps
 
-- **Explore the full tool set**: [Tools Reference](../reference/tools-overview.md)
-- **Learn about architecture**: [Overview](../architecture/overview.md), [Security Model](../architecture/security-model.md)
-- **Deploy in production**: [Kubernetes Guide](../deployment/kubernetes.md)
-- **Integrate with your workflow**: [Integration Guide](integration.md)
-
-## Need Help?
-
-- **Troubleshooting**: [Common Issues](troubleshooting.md)
-- **Questions**: [GitHub Discussions](https://github.com/3soos3/solve-it-mcp/discussions)
-- **Bug Reports**: [GitHub Issues](https://github.com/3soos3/solve-it-mcp/issues)
+- [Tools Reference](../reference/tools-overview.md) — complete list of all 24 tools
+- [Docker Deployment](../deployment/docker.md) — image types, tags, and security features
+- [Security Model](../architecture/security-model.md) — chain-of-custody and verification
+- [Troubleshooting](troubleshooting.md) — common issues
