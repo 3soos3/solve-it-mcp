@@ -1,0 +1,155 @@
+name: Security Monitor - Daily CVE Scan
+
+# Daily scan of published :live and :latest images for new CVEs.
+# Runs against all 3 architectures on GHCR.
+# Automatically opens a GitHub issue if CRITICAL CVEs are found.
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # Daily at 02:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  GHCR_REPO: ghcr.io/${{ github.repository_owner }}/solve-it-mcp
+
+jobs:
+  scan:
+    name: Scan ${{ matrix.image }}:${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+      issues: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [live, latest]
+        platform: [linux/amd64, linux/arm64, linux/arm/v7]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and export image
+        run: |
+          PLATFORM_TAG=$(echo "${{ matrix.platform }}" | tr '/' '-' | sed 's/linux-//')
+          echo "PLATFORM_TAG=${PLATFORM_TAG}" >> $GITHUB_ENV
+          docker pull --platform ${{ matrix.platform }} \
+            ${{ env.GHCR_REPO }}:${{ matrix.image }}
+          docker save ${{ env.GHCR_REPO }}:${{ matrix.image }} \
+            -o /tmp/image-${{ matrix.image }}-${PLATFORM_TAG}.tar
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          input: /tmp/image-${{ matrix.image }}-${{ env.PLATFORM_TAG }}.tar
+          format: sarif
+          output: trivy-${{ matrix.image }}-${{ env.PLATFORM_TAG }}.sarif
+          severity: CRITICAL,HIGH
+          scanners: vuln
+        continue-on-error: true
+
+      - uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.image }}-${{ env.PLATFORM_TAG }}.sarif
+          category: monitor-${{ matrix.image }}-${{ env.PLATFORM_TAG }}
+        continue-on-error: true
+
+      - name: Check for CRITICAL CVEs and open issue
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { execSync } = require('child_process');
+
+            const platform = '${{ env.PLATFORM_TAG }}';
+            const image = '${{ matrix.image }}';
+            const tarPath = `/tmp/image-${image}-${platform}.tar`;
+
+            let criticalCount = 0;
+            let criticalCVEs = [];
+
+            try {
+              const output = execSync(
+                `trivy image --input ${tarPath} --format json --severity CRITICAL --scanners vuln --quiet`,
+                { encoding: 'utf8' }
+              );
+              const data = JSON.parse(output);
+              const vulns = data.Results?.flatMap(r => r.Vulnerabilities || [])
+                .filter(v => v.Severity === 'CRITICAL') || [];
+              criticalCount = vulns.length;
+              criticalCVEs = vulns.slice(0, 10).map(v =>
+                `- **${v.VulnerabilityID}** in \`${v.PkgName}@${v.InstalledVersion}\`: ${v.Title || 'No title'}`
+              );
+            } catch (e) {
+              core.warning(`Failed to parse Trivy output: ${e.message}`);
+              return;
+            }
+
+            if (criticalCount === 0) {
+              core.notice(`✅ No CRITICAL CVEs in :${image} on ${platform}`);
+              return;
+            }
+
+            // Check for existing open issue for this image+platform combo
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: [`security`, `cve`, `${image}-image`],
+            });
+
+            const existingIssue = issues.find(i =>
+              i.title.includes(`CRITICAL CVEs in :${image}`) &&
+              i.title.includes(platform)
+            );
+
+            const body = [
+              `## CRITICAL CVEs detected in \`:${image}\` (${platform})`,
+              '',
+              `**Detected:** ${new Date().toISOString()}`,
+              `**Image:** \`${{ env.GHCR_REPO }}:${image}\``,
+              `**Platform:** \`${{ matrix.platform }}\``,
+              `**Count:** ${criticalCount} CRITICAL vulnerabilities`,
+              '',
+              '### Top CVEs',
+              ...criticalCVEs,
+              criticalCount > 10 ? `\n_...and ${criticalCount - 10} more. See the [Security tab](https://github.com/${{ github.repository }}/security/code-scanning) for full details._` : '',
+              '',
+              '### Action Required',
+              '1. Review the CVEs in the [Security tab](https://github.com/${{ github.repository }}/security/code-scanning)',
+              '2. Trigger a manual rebuild to pick up patched base images: run the relevant Docker workflow with `force=true`',
+              '3. Close this issue once the rebuilt image passes scanning',
+            ].join('\n');
+
+            if (existingIssue) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existingIssue.number,
+                body: `Updated scan: ${criticalCount} CRITICAL CVEs still present as of ${new Date().toISOString()}.\n\n${criticalCVEs.join('\n')}`,
+              });
+              core.warning(`Updated existing issue #${existingIssue.number}`);
+            } else {
+              const { data: newIssue } = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `🚨 CRITICAL CVEs in :${image} on ${platform} (${new Date().toISOString().split('T')[0]})`,
+                body,
+                labels: ['security', 'cve', `${image}-image`],
+              });
+              core.warning(`Created issue #${newIssue.number}`);
+            }
