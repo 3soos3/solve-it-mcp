@@ -23,7 +23,7 @@ from .stdio_transport import run_stdio_server
 
 # HTTP transport import is conditional to avoid dependency issues
 try:
-    from .http_transport_sdk import run_http_server, create_mcp_http_app
+    from .http_transport_sdk import create_mcp_http_app, run_http_server
 
     HTTP_AVAILABLE = True
 except ImportError:
@@ -34,7 +34,7 @@ except ImportError:
 
 __all__ = [
     "HTTP_AVAILABLE",
-    "run_stdio_server",
-    "run_http_server",
     "create_mcp_http_app",
+    "run_http_server",
+    "run_stdio_server",
 ]

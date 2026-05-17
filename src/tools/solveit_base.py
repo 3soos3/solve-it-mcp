@@ -220,7 +220,7 @@ class SolveItBaseTool(BaseTool[P], ABC):
         return {
             "image_tag": os.environ.get("IMAGE_TAG", "unknown"),
             "mcp_version": os.environ.get("MCP_VERSION", "unknown"),
-            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         }
 
     def _wrap_response(self, result: str) -> str:

@@ -28,9 +28,11 @@ Typical usage:
     >>> # Run with uvicorn
 """
 
-import contextlib
 from collections.abc import AsyncIterator
+import contextlib
 
+from mcp.server.lowlevel import Server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
@@ -38,9 +40,6 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Mount, Route
 import uvicorn
-
-from mcp.server.lowlevel import Server
-from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
 from config import HTTPConfig
 from utils.logging import get_logger
