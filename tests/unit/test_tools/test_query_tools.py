@@ -115,7 +115,7 @@ class TestSearchTool:
 
             # Verify knowledge base search was called correctly
             tool.knowledge_base.search.assert_called_once_with(
-                keywords="test search", item_types=None, search_logic="AND"
+                keywords="test search", item_types=None, search_logic="AND", substring_match=False
             )
 
     @pytest.mark.asyncio
@@ -137,7 +137,7 @@ class TestSearchTool:
 
             # Verify knowledge base search was called correctly
             tool.knowledge_base.search.assert_called_once_with(
-                keywords="test", item_types=["techniques", "weaknesses"], search_logic="AND"
+                keywords="test", item_types=["techniques", "weaknesses"], search_logic="AND", substring_match=False
             )
 
     @pytest.mark.asyncio

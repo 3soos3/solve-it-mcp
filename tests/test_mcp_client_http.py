@@ -113,9 +113,9 @@ async def test_list_tools(server_process, server_url):
             await session.initialize()
             result = await session.list_tools()
 
-            # 20 original + get_citation + get_objectives_for_technique = 22
-            assert len(result.tools) == 22, (
-                f"Expected 22 tools, got {len(result.tools)}: "
+            # 20 original + get_citation + get_objectives_for_technique + resolve_inline_citations + get_mitigations_for_technique = 24
+            assert len(result.tools) == 24, (
+                f"Expected 24 tools, got {len(result.tools)}: "
                 f"{[t.name for t in result.tools]}"
             )
 

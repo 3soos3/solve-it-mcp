@@ -57,6 +57,7 @@ from tools.solveit_tools import (
     GetDatabaseDescriptionTool,
     GetMitigationDetailsTool,
     GetMitigationsForWeaknessTool,
+    GetMitigationsForTechniqueTool,
     GetObjectivesForTechniqueTool,
     GetTechniqueDetailsTool,
     GetTechniquesForMitigationTool,
@@ -70,6 +71,7 @@ from tools.solveit_tools import (
     # Objective/Mapping Management
     ListObjectivesTool,
     LoadObjectiveMappingTool,
+    ResolveInlineCitationsTool,
     SearchTool,
 )
 from utils.knowledge_base_manager import SharedKnowledgeBase
@@ -229,9 +231,11 @@ async def main() -> None:
             GetWeaknessDetailsTool(init_kb=False),
             GetMitigationDetailsTool(init_kb=False),
             GetCitationTool(init_kb=False),
+            ResolveInlineCitationsTool(init_kb=False),
             # Forward relationship query tools
             GetWeaknessesForTechniqueTool(init_kb=False),
             GetMitigationsForWeaknessTool(init_kb=False),
+            GetMitigationsForTechniqueTool(init_kb=False),
             # Reverse relationship query tools
             GetTechniquesForWeaknessTool(init_kb=False),
             GetWeaknessesForMitigationTool(init_kb=False),

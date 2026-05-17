@@ -96,11 +96,17 @@ def mock_knowledge_base():
     mock_kb.get_all_weaknesses_with_full_detail.return_value = [sample_weakness]
     mock_kb.get_all_mitigations_with_full_detail.return_value = [sample_mitigation]
 
-    # Mock citation method
+    # Mock citation methods
     mock_kb.get_citation_display_text.return_value = "Test Author (2024). Test Title. Test Journal."
+    mock_kb.resolve_inline_citations.return_value = (
+        "Some text with Test Author (2024). Test Title. Test Journal. inline."
+    )
 
     # Mock objectives-for-technique method
     mock_kb.get_objectives_for_technique.return_value = ["Test Objective 1", "Test Objective 2"]
+
+    # Mock technique-to-mitigations shortcut
+    mock_kb.get_mit_list_for_technique.return_value = ["DFM-1001", "DFM-1002"]
 
     return mock_kb
 

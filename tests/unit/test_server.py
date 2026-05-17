@@ -10,9 +10,12 @@ from tools.solveit_tools import (
     GetAllTechniquesWithNameAndIdTool,
     GetAllWeaknessesWithFullDetailTool,
     GetAllWeaknessesWithNameAndIdTool,
+    GetCitationTool,
     GetDatabaseDescriptionTool,
     GetMitigationDetailsTool,
+    GetMitigationsForTechniqueTool,
     GetMitigationsForWeaknessTool,
+    GetObjectivesForTechniqueTool,
     GetTechniqueDetailsTool,
     GetTechniquesForMitigationTool,
     GetTechniquesForObjectiveTool,
@@ -23,6 +26,7 @@ from tools.solveit_tools import (
     ListAvailableMappingsTool,
     ListObjectivesTool,
     LoadObjectiveMappingTool,
+    ResolveInlineCitationsTool,
     SearchTool,
 )
 
@@ -60,7 +64,7 @@ class TestToolRegistration:
     """Test that all tools are properly registered."""
 
     def test_expected_tool_count(self):
-        """Test that all 20 expected tools are available."""
+        """Test that all 24 expected tools are available."""
         expected_tools = [
             GetDatabaseDescriptionTool,
             SearchTool,
@@ -82,9 +86,13 @@ class TestToolRegistration:
             GetAllTechniquesWithFullDetailTool,
             GetAllWeaknessesWithFullDetailTool,
             GetAllMitigationsWithFullDetailTool,
+            GetCitationTool,
+            GetObjectivesForTechniqueTool,
+            ResolveInlineCitationsTool,
+            GetMitigationsForTechniqueTool,
         ]
 
-        assert len(expected_tools) == 20
+        assert len(expected_tools) == 24
 
     def test_tool_names_are_unique(self):
         """Test that all tool names are unique."""
@@ -109,6 +117,10 @@ class TestToolRegistration:
             GetAllTechniquesWithFullDetailTool,
             GetAllWeaknessesWithFullDetailTool,
             GetAllMitigationsWithFullDetailTool,
+            GetCitationTool,
+            GetObjectivesForTechniqueTool,
+            ResolveInlineCitationsTool,
+            GetMitigationsForTechniqueTool,
         ]
 
         # Create instances to get tool names
@@ -147,6 +159,10 @@ class TestToolRegistration:
             GetAllTechniquesWithFullDetailTool,
             GetAllWeaknessesWithFullDetailTool,
             GetAllMitigationsWithFullDetailTool,
+            GetCitationTool,
+            GetObjectivesForTechniqueTool,
+            ResolveInlineCitationsTool,
+            GetMitigationsForTechniqueTool,
         ]
 
         for tool_class in tool_classes:
@@ -182,6 +198,10 @@ class TestToolRegistration:
             GetAllTechniquesWithFullDetailTool,
             GetAllWeaknessesWithFullDetailTool,
             GetAllMitigationsWithFullDetailTool,
+            GetCitationTool,
+            GetObjectivesForTechniqueTool,
+            ResolveInlineCitationsTool,
+            GetMitigationsForTechniqueTool,
         ]
 
         for tool_class in tool_classes:
