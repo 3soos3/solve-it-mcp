@@ -7,6 +7,19 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+def pytest_addoption(parser):
+    """Add --server-url option so tests can target an existing server/container."""
+    parser.addoption(
+        "--server-url",
+        default=None,
+        help=(
+            "URL of an already-running MCP server to test against "
+            "(e.g. http://localhost:8000/mcp/v1). "
+            "If omitted, a local server process is spawned automatically."
+        ),
+    )
+
+
 @pytest.fixture
 def mock_knowledge_base():
     """Mock SOLVE-IT KnowledgeBase with sample data."""

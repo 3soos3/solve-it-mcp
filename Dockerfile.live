@@ -95,6 +95,10 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Copy solve_it_library Python package (needed at runtime for imports)
+# Data files are NOT copied — fetched at container start by the entrypoint
+COPY --from=builder --chown=mcpuser:mcpuser /tmp/solve-it-src/solve_it_library /app/solve-it-main/solve_it_library
+
 COPY --chown=mcpuser:mcpuser src/ /app/src/
 COPY --chown=mcpuser:mcpuser scripts/fetch_solveit_data.py /app/scripts/fetch_solveit_data.py
 COPY --chown=mcpuser:mcpuser docker/entrypoint-live.sh /app/entrypoint-live.sh
