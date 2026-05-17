@@ -230,6 +230,7 @@ class SolveItBaseTool(BaseTool[P], ABC):
             return result
         try:
             import json
+
             data = json.loads(result)
             if isinstance(data, dict):
                 data["_meta"] = meta

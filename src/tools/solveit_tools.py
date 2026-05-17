@@ -57,7 +57,9 @@ class GetDatabaseDescriptionTool(SolveItBaseTool[GetDatabaseDescriptionParams]):
             return self._wrap_response(json.dumps(description, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, "database description retrieval"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, "database description retrieval")
+            )
 
 
 class SearchParams(ToolParams):
@@ -155,7 +157,9 @@ class GetTechniqueDetailsTool(SolveItBaseTool[GetTechniqueDetailsParams]):
             return self._wrap_response(json.dumps(technique, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, f"technique {params.technique_id} retrieval"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, f"technique {params.technique_id} retrieval")
+            )
 
 
 class GetWeaknessDetailsParams(ToolParams):
@@ -187,7 +191,9 @@ class GetWeaknessDetailsTool(SolveItBaseTool[GetWeaknessDetailsParams]):
             return self._wrap_response(json.dumps(weakness, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, f"weakness {params.weakness_id} retrieval"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, f"weakness {params.weakness_id} retrieval")
+            )
 
 
 class GetMitigationDetailsParams(ToolParams):
@@ -219,9 +225,9 @@ class GetMitigationDetailsTool(SolveItBaseTool[GetMitigationDetailsParams]):
             return self._wrap_response(json.dumps(mitigation, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(
-                e, f"mitigation {params.mitigation_id} retrieval"
-            ))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, f"mitigation {params.mitigation_id} retrieval")
+            )
 
 
 class GetCitationParams(ToolParams):
@@ -246,10 +252,14 @@ class GetCitationTool(SolveItBaseTool[GetCitationParams]):
         """Get citation display text."""
         try:
             text = self.knowledge_base.get_citation_display_text(params.citation_id)
-            return self._wrap_response(json.dumps({"id": params.citation_id, "reference": text}, indent=2))
+            return self._wrap_response(
+                json.dumps({"id": params.citation_id, "reference": text}, indent=2)
+            )
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, f"citation {params.citation_id} retrieval"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, f"citation {params.citation_id} retrieval")
+            )
 
 
 class ResolveInlineCitationsParams(ToolParams):
@@ -308,7 +318,9 @@ class GetMitigationsForTechniqueTool(SolveItBaseTool[GetMitigationsForTechniqueP
         """Get mitigations for technique via weakness traversal."""
         try:
             mitigation_ids = self.knowledge_base.get_mit_list_for_technique(params.technique_id)
-            return json.dumps({"technique_id": params.technique_id, "mitigations": mitigation_ids}, indent=2)
+            return json.dumps(
+                {"technique_id": params.technique_id, "mitigations": mitigation_ids}, indent=2
+            )
 
         except Exception as e:
             return self.handle_knowledge_base_error(
@@ -341,9 +353,11 @@ class GetWeaknessesForTechniqueTool(SolveItBaseTool[GetWeaknessesForTechniquePar
             return self._wrap_response(json.dumps(weaknesses, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(
-                e, f"weaknesses for technique {params.technique_id}"
-            ))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(
+                    e, f"weaknesses for technique {params.technique_id}"
+                )
+            )
 
 
 class GetMitigationsForWeaknessParams(ToolParams):
@@ -371,9 +385,11 @@ class GetMitigationsForWeaknessTool(SolveItBaseTool[GetMitigationsForWeaknessPar
             return self._wrap_response(json.dumps(mitigations, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(
-                e, f"mitigations for weakness {params.weakness_id}"
-            ))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(
+                    e, f"mitigations for weakness {params.weakness_id}"
+                )
+            )
 
 
 # =============================================================================
@@ -406,9 +422,9 @@ class GetTechniquesForWeaknessTool(SolveItBaseTool[GetTechniquesForWeaknessParam
             return self._wrap_response(json.dumps(techniques, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(
-                e, f"techniques for weakness {params.weakness_id}"
-            ))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, f"techniques for weakness {params.weakness_id}")
+            )
 
 
 class GetWeaknessesForMitigationParams(ToolParams):
@@ -436,9 +452,11 @@ class GetWeaknessesForMitigationTool(SolveItBaseTool[GetWeaknessesForMitigationP
             return self._wrap_response(json.dumps(weaknesses, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(
-                e, f"weaknesses for mitigation {params.mitigation_id}"
-            ))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(
+                    e, f"weaknesses for mitigation {params.mitigation_id}"
+                )
+            )
 
 
 class GetTechniquesForMitigationParams(ToolParams):
@@ -466,9 +484,11 @@ class GetTechniquesForMitigationTool(SolveItBaseTool[GetTechniquesForMitigationP
             return self._wrap_response(json.dumps(techniques, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(
-                e, f"techniques for mitigation {params.mitigation_id}"
-            ))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(
+                    e, f"techniques for mitigation {params.mitigation_id}"
+                )
+            )
 
 
 # =============================================================================
@@ -508,7 +528,9 @@ class ListObjectivesTool(SolveItBaseTool[ListObjectivesParams]):
 class GetTechniquesForObjectiveParams(ToolParams):
     """Parameters for get_techniques_for_objective tool."""
 
-    objective_name: str = Field(description="The exact name of the objective (e.g., 'Acquire data')", min_length=1)
+    objective_name: str = Field(
+        description="The exact name of the objective (e.g., 'Acquire data')", min_length=1
+    )
 
 
 class GetTechniquesForObjectiveTool(SolveItBaseTool[GetTechniquesForObjectiveParams]):
@@ -530,9 +552,11 @@ class GetTechniquesForObjectiveTool(SolveItBaseTool[GetTechniquesForObjectivePar
             return self._wrap_response(json.dumps(techniques, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(
-                e, f"techniques for objective {params.objective_name}"
-            ))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(
+                    e, f"techniques for objective {params.objective_name}"
+                )
+            )
 
 
 class GetObjectivesForTechniqueParams(ToolParams):
@@ -561,9 +585,11 @@ class GetObjectivesForTechniqueTool(SolveItBaseTool[GetObjectivesForTechniquePar
             return self._wrap_response(json.dumps(objectives, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(
-                e, f"objectives for technique {params.technique_id}"
-            ))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(
+                    e, f"objectives for technique {params.technique_id}"
+                )
+            )
 
 
 class ListAvailableMappingsParams(ToolParams):
@@ -592,7 +618,9 @@ class ListAvailableMappingsTool(SolveItBaseTool[ListAvailableMappingsParams]):
             return self._wrap_response(json.dumps(mappings, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, "available mappings listing"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, "available mappings listing")
+            )
 
 
 class LoadObjectiveMappingParams(ToolParams):
@@ -637,7 +665,9 @@ class LoadObjectiveMappingTool(SolveItBaseTool[LoadObjectiveMappingParams]):
             return self._wrap_response(json.dumps(result, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, f"loading mapping {params.filename}"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, f"loading mapping {params.filename}")
+            )
 
 
 # =============================================================================
@@ -670,7 +700,9 @@ class GetAllTechniquesWithNameAndIdTool(SolveItBaseTool[GetAllTechniquesWithName
             return self._wrap_response(json.dumps(techniques, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, "all techniques with name and ID"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, "all techniques with name and ID")
+            )
 
 
 class GetAllWeaknessesWithNameAndIdParams(ToolParams):
@@ -698,7 +730,9 @@ class GetAllWeaknessesWithNameAndIdTool(SolveItBaseTool[GetAllWeaknessesWithName
             return self._wrap_response(json.dumps(weaknesses, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, "all weaknesses with name and ID"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, "all weaknesses with name and ID")
+            )
 
 
 class GetAllMitigationsWithNameAndIdParams(ToolParams):
@@ -726,7 +760,9 @@ class GetAllMitigationsWithNameAndIdTool(SolveItBaseTool[GetAllMitigationsWithNa
             return self._wrap_response(json.dumps(mitigations, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, "all mitigations with name and ID"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, "all mitigations with name and ID")
+            )
 
 
 class GetAllTechniquesWithFullDetailParams(ToolParams):
@@ -754,7 +790,9 @@ class GetAllTechniquesWithFullDetailTool(SolveItBaseTool[GetAllTechniquesWithFul
             return self._wrap_response(json.dumps(techniques, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, "all techniques with full detail"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, "all techniques with full detail")
+            )
 
 
 class GetAllWeaknessesWithFullDetailParams(ToolParams):
@@ -782,7 +820,9 @@ class GetAllWeaknessesWithFullDetailTool(SolveItBaseTool[GetAllWeaknessesWithFul
             return self._wrap_response(json.dumps(weaknesses, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, "all weaknesses with full detail"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, "all weaknesses with full detail")
+            )
 
 
 class GetAllMitigationsWithFullDetailParams(ToolParams):
@@ -810,4 +850,6 @@ class GetAllMitigationsWithFullDetailTool(SolveItBaseTool[GetAllMitigationsWithF
             return self._wrap_response(json.dumps(mitigations, indent=2))
 
         except Exception as e:
-            return self._wrap_response(self.handle_knowledge_base_error(e, "all mitigations with full detail"))
+            return self._wrap_response(
+                self.handle_knowledge_base_error(e, "all mitigations with full detail")
+            )
