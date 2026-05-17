@@ -5,11 +5,11 @@ with the official MCP Python SDK client. Unlike the bash integration tests,
 these use the same client libraries that real MCP clients would use.
 
 Usage:
-    # Run all SDK client tests
+    # Run against a locally spawned server (default)
     pytest tests/test_mcp_client_http.py -v
 
-    # Run specific test
-    pytest tests/test_mcp_client_http.py::test_initialize -v
+    # Run against an already-running server or container
+    pytest tests/test_mcp_client_http.py -v --server-url http://localhost:8000/mcp/v1
 
     # Skip slow tests
     pytest tests/test_mcp_client_http.py -v -m "not slow"
@@ -32,18 +32,36 @@ from mcp.types import TextContent
 # Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
 
-
 # Configuration
 DEFAULT_SERVER_URL = "http://localhost:8000/mcp/v1"
-SERVER_STARTUP_TIMEOUT = 10  # seconds
+SERVER_STARTUP_TIMEOUT = 15  # seconds to wait for local server to start
 SERVER_SHUTDOWN_TIMEOUT = 5  # seconds
 
 
 @pytest.fixture(scope="module")
-def server_process(request):
-    """Start MCP server for testing."""
-    # Start a new server process
-    print("\n[Fixture] Starting MCP server...")
+def server_url(request) -> str:
+    """Return the MCP server URL to test against."""
+    url = request.config.getoption("--server-url")
+    return url if url else DEFAULT_SERVER_URL
+
+
+@pytest.fixture(scope="module")
+def server_process(request, server_url):
+    """Start a local MCP server if no --server-url was provided.
+
+    When --server-url is given the server is assumed to already be running
+    (e.g. a Docker container) and this fixture is a no-op.
+    """
+    external_url = request.config.getoption("--server-url")
+
+    if external_url:
+        # Nothing to start — the caller is responsible for the server
+        print(f"\n[Fixture] Using external server at {external_url}")
+        yield None
+        return
+
+    # Spawn a local server process
+    print("\n[Fixture] Starting local MCP server...")
     process = subprocess.Popen(
         ["python3", "src/server.py", "--transport", "http"],
         stdout=subprocess.PIPE,
@@ -51,17 +69,14 @@ def server_process(request):
         text=True,
     )
 
-    # Wait for server to start
     print(f"[Fixture] Waiting up to {SERVER_STARTUP_TIMEOUT}s for server startup...")
     time.sleep(SERVER_STARTUP_TIMEOUT)
 
-    # Check if process is still running
     if process.poll() is not None:
         stdout, stderr = process.communicate()
         pytest.fail(f"Server failed to start!\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}")
 
     print("[Fixture] Server started successfully")
-
     yield process
 
     # Cleanup
@@ -76,12 +91,6 @@ def server_process(request):
         process.wait()
 
 
-@pytest.fixture(scope="module")
-def server_url() -> str:
-    """Get server URL."""
-    return DEFAULT_SERVER_URL
-
-
 @pytest.mark.asyncio
 async def test_initialize(server_process, server_url):
     """Test MCP initialize handshake."""
@@ -89,15 +98,10 @@ async def test_initialize(server_process, server_url):
         async with ClientSession(read, write) as session:
             result = await session.initialize()
 
-            # Verify server info
             assert result.serverInfo is not None
             assert result.serverInfo.name == "solveit_mcp_server"
             assert result.serverInfo.version is not None
-
-            # Verify protocol version (SDK may use different version)
             assert result.protocolVersion in ["2025-11-25", "2025-06-18"]
-
-            # Verify capabilities
             assert result.capabilities is not None
 
 
@@ -106,16 +110,15 @@ async def test_list_tools(server_process, server_url):
     """Test listing all available tools."""
     async with streamablehttp_client(server_url) as (read, write, get_session_id):
         async with ClientSession(read, write) as session:
-            # Initialize first
             await session.initialize()
-
-            # List tools
             result = await session.list_tools()
 
-            # Verify we have exactly 20 SOLVE-IT tools
-            assert len(result.tools) == 20
+            # 20 original + get_citation + get_objectives_for_technique + resolve_inline_citations + get_mitigations_for_technique = 24
+            assert len(result.tools) == 24, (
+                f"Expected 24 tools, got {len(result.tools)}: "
+                f"{[t.name for t in result.tools]}"
+            )
 
-            # Verify some expected tools are present
             tool_names = {tool.name for tool in result.tools}
             expected_tools = {
                 "get_database_description",
@@ -123,12 +126,13 @@ async def test_list_tools(server_process, server_url):
                 "get_technique_details",
                 "get_weakness_details",
                 "get_mitigation_details",
+                "get_citation",
+                "get_objectives_for_technique",
             }
             assert expected_tools.issubset(tool_names), (
                 f"Missing tools: {expected_tools - tool_names}"
             )
 
-            # Verify each tool has required fields
             for tool in result.tools:
                 assert tool.name
                 assert tool.description
@@ -140,17 +144,11 @@ async def test_call_tool_get_database_description(server_process, server_url):
     """Test calling the get_database_description tool."""
     async with streamablehttp_client(server_url) as (read, write, get_session_id):
         async with ClientSession(read, write) as session:
-            # Initialize first
             await session.initialize()
-
-            # Call tool
             result = await session.call_tool("get_database_description", {})
 
-            # Verify result structure
             assert result.content is not None
             assert len(result.content) > 0
-
-            # Verify content type and content
             first_content = result.content[0]
             assert isinstance(first_content, TextContent)
             assert "SOLVE-IT" in first_content.text
@@ -164,21 +162,30 @@ async def test_call_tool_search(server_process, server_url):
     """Test calling the search tool."""
     async with streamablehttp_client(server_url) as (read, write, get_session_id):
         async with ClientSession(read, write) as session:
-            # Initialize first
             await session.initialize()
-
-            # Search for "SQL injection"
             result = await session.call_tool(
-                "search", {"query": "SQL injection", "category": "all", "limit": 5}
+                "search", {"keywords": "memory acquisition", "limit": 5}
             )
 
-            # Verify result
             assert result.content is not None
             assert len(result.content) > 0
-
             first_content = result.content[0]
             assert isinstance(first_content, TextContent)
-            # Should find CWE-89 or similar SQL injection related items
+            assert len(first_content.text) > 0
+
+
+@pytest.mark.asyncio
+async def test_call_tool_list_objectives(server_process, server_url):
+    """Test that list_objectives returns objectives."""
+    async with streamablehttp_client(server_url) as (read, write, get_session_id):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            result = await session.call_tool("list_objectives", {})
+
+            assert result.content is not None
+            assert len(result.content) > 0
+            first_content = result.content[0]
+            assert isinstance(first_content, TextContent)
             assert len(first_content.text) > 0
 
 
@@ -187,13 +194,9 @@ async def test_call_tool_with_invalid_name(server_process, server_url):
     """Test calling a non-existent tool returns an error."""
     async with streamablehttp_client(server_url) as (read, write, get_session_id):
         async with ClientSession(read, write) as session:
-            # Initialize first
             await session.initialize()
-
-            # Call non-existent tool - SDK returns CallToolResult with isError=True
             result = await session.call_tool("nonexistent_tool", {})
 
-            # The SDK wraps errors in the result
             assert result.isError is True
             assert len(result.content) > 0
             error_text = result.content[0].text.lower()
@@ -202,46 +205,41 @@ async def test_call_tool_with_invalid_name(server_process, server_url):
 
 @pytest.mark.asyncio
 async def test_call_tool_with_invalid_arguments(server_process, server_url):
-    """Test calling a tool with invalid arguments returns an error."""
+    """Test calling a tool with missing required arguments returns a validation error."""
     async with streamablehttp_client(server_url) as (read, write, get_session_id):
         async with ClientSession(read, write) as session:
-            # Initialize first
             await session.initialize()
-
-            # Call search tool with invalid limit - SDK returns CallToolResult with isError=True
+            # search requires 'keywords' — omitting it should fail validation
             result = await session.call_tool(
                 "search",
-                {"query": "test", "limit": -1},  # Invalid: negative limit
+                {},  # missing required 'keywords' field
             )
 
-            # Should get validation error in result
             assert result.isError is True
             assert len(result.content) > 0
             error_text = result.content[0].text.lower()
-            assert "limit" in error_text or "validation" in error_text
+            assert "keyword" in error_text or "validation" in error_text or "required" in error_text
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "tool_name,arguments",
     [
-        ("get_technique_details", {"technique_id": "DFT-1059"}),
-        ("get_weakness_details", {"weakness_id": "CWE-79"}),
-        ("get_mitigation_details", {"mitigation_id": "DFM-1038"}),
+        # Use SOLVE-IT DFT/DFW/DFM ID format (not MITRE ATT&CK or CWE)
+        ("get_technique_details", {"technique_id": "DFT-1001"}),
+        ("get_weakness_details", {"weakness_id": "DFW-1001"}),
+        ("get_mitigation_details", {"mitigation_id": "DFM-1001"}),
         ("list_objectives", {}),
+        ("get_all_techniques_with_name_and_id", {}),
     ],
 )
 async def test_call_multiple_tools(server_process, server_url, tool_name: str, arguments: dict):
     """Test calling various tools with valid arguments."""
     async with streamablehttp_client(server_url) as (read, write, get_session_id):
         async with ClientSession(read, write) as session:
-            # Initialize first
             await session.initialize()
-
-            # Call tool
             result = await session.call_tool(tool_name, arguments)
 
-            # Verify basic structure
             assert result.content is not None
             assert len(result.content) > 0
             assert isinstance(result.content[0], TextContent)
@@ -253,41 +251,32 @@ async def test_concurrent_tool_calls(server_process, server_url):
     """Test that multiple concurrent tool calls work correctly."""
     async with streamablehttp_client(server_url) as (read, write, get_session_id):
         async with ClientSession(read, write) as session:
-            # Initialize first
             await session.initialize()
 
-            # Make multiple concurrent calls
             tasks = [
                 session.call_tool("get_database_description", {}),
-                session.call_tool(
-                    "search", {"query": "authentication", "category": "all", "limit": 3}
-                ),
+                session.call_tool("search", {"keywords": "volatile memory", "limit": 3}),
                 session.call_tool("list_objectives", {}),
             ]
 
             results = await asyncio.gather(*tasks)
 
-            # Verify all calls succeeded
             assert len(results) == 3
             for result in results:
                 assert result.content is not None
                 assert len(result.content) > 0
 
 
-# Performance test (optional, can be skipped with -m "not slow")
 @pytest.mark.asyncio
 @pytest.mark.slow
 async def test_tool_call_performance(server_process, server_url):
     """Test that tool calls complete within reasonable time."""
     async with streamablehttp_client(server_url) as (read, write, get_session_id):
         async with ClientSession(read, write) as session:
-            # Initialize first
             await session.initialize()
 
-            # Time a simple tool call
             start = time.time()
             await session.call_tool("get_database_description", {})
             elapsed = time.time() - start
 
-            # Should complete in under 2 seconds
             assert elapsed < 2.0, f"Tool call took {elapsed:.2f}s (expected < 2.0s)"

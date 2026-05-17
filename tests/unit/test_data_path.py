@@ -11,13 +11,19 @@ from utils.data_path import get_solve_it_data_path, validate_solve_it_data_path
 class TestGetSolveItDataPath:
     """Test the get_solve_it_data_path function."""
 
-    def test_environment_variable_path(self):
+    def test_environment_variable_path(self, tmp_path):
         """Test that environment variable takes precedence."""
-        test_path = "/custom/solve-it/path"
-        with patch.dict(os.environ, {"SOLVE_IT_DATA_PATH": test_path}):
-            with patch("utils.data_path.validate_solve_it_data_path", return_value=True):
-                result = get_solve_it_data_path()
-                assert result == test_path
+        # Create a valid data directory structure
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        (data_dir / "techniques").mkdir()
+        (data_dir / "weaknesses").mkdir()
+        (data_dir / "mitigations").mkdir()
+        (tmp_path / "solve-it.json").write_text("[]")  # mapping file in parent
+
+        with patch.dict(os.environ, {"SOLVE_IT_DATA_PATH": str(data_dir)}):
+            result = get_solve_it_data_path()
+            assert result == str(data_dir)
 
     def test_custom_path_provided(self, tmp_path):
         """Test that custom path takes precedence."""

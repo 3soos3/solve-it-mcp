@@ -224,7 +224,7 @@ class TestParameterValidation:
 
     def test_parameter_inheritance(self):
         """Test that all parameter classes inherit from ToolParams."""
-        from solveit_mcp_server.tools.solveit_base import ToolParams
+        from tools.base import ToolParams
 
         all_param_classes = [
             GetDatabaseDescriptionParams,

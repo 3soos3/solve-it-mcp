@@ -1,0 +1,77 @@
+version: '3.8'
+
+# "Live data" Docker Compose for SOLVE-IT MCP Server
+# Data is fetched from data.solveit-df.org at startup and refreshed daily.
+# Use this variant when you always want the latest SOLVE-IT knowledge base.
+#
+# Usage:
+#   docker compose -f docker-compose.live.yml up -d
+
+services:
+  solveit-mcp-live:
+    image: 3soos3/solve-it-mcp:live
+    container_name: solveit-mcp-live
+
+    build:
+      context: .
+      dockerfile: Dockerfile.live
+      args:
+        VERSION: live
+
+    environment:
+      # Transport
+      MCP_TRANSPORT: http
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: 8000
+
+      # Live data settings
+      SOLVE_IT_DATA_URL: https://data.solveit-df.org/solve-it.json
+      # BASE_DIR: root dir that fetch_solveit_data.py writes into
+      SOLVE_IT_BASE_DIR: /app/solve-it-main
+      # DATA_PATH: the data/ subdir read by the MCP server (KnowledgeBase)
+      SOLVE_IT_DATA_PATH: /app/solve-it-main/data
+      # Hour (UTC) at which to refresh data daily (0-23)
+      SOLVE_IT_REFRESH_HOUR: "3"
+
+      # Logging
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+
+      # OpenTelemetry
+      OTEL_ENABLED: "true"
+      ENVIRONMENT: production
+
+    ports:
+      - "8000:8000"
+
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 3s
+      # Longer start period: allow time for initial data fetch
+      start_period: 60s
+      retries: 5
+
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+
+    restart: unless-stopped
+
+    security_opt:
+      - no-new-privileges:true
+
+    user: "1000:1000"
+
+    networks:
+      - mcp-network
+
+networks:
+  mcp-network:
+    driver: bridge
+    name: solveit-mcp-live-network

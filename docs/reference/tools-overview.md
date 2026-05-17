@@ -9,34 +9,39 @@ Complete reference for all 20+ MCP tools provided by SOLVE-IT MCP Server.
 
 ### Core Information Tools
 - `get_database_description` - Get comprehensive overview of SOLVE-IT database
-- `search` - Search across techniques, weaknesses, and mitigations
+- `search` - Search across techniques, weaknesses, and mitigations (supports AND/OR logic and substring matching)
 
 ### Detailed Lookup Tools
-- `get_technique_details` - Retrieve complete technique information
-- `get_weakness_details` - Retrieve detailed weakness information
-- `get_mitigation_details` - Retrieve detailed mitigation information
+- `get_technique_details` - Retrieve complete technique information (e.g. DFT-1001)
+- `get_weakness_details` - Retrieve detailed weakness information (e.g. DFW-1001)
+- `get_mitigation_details` - Retrieve detailed mitigation information (e.g. DFM-1001)
 
 ### Relationship Analysis Tools
 - `get_weaknesses_for_technique` - Find weaknesses for a technique
 - `get_mitigations_for_weakness` - Find mitigations for a weakness
 - `get_techniques_for_weakness` - Find techniques with a weakness
-- `get_weaknesses_for_mitigation` - Find weaknesses addressed by mitigation
-- `get_techniques_for_mitigation` - Find techniques benefiting from mitigation
+- `get_weaknesses_for_mitigation` - Find weaknesses addressed by a mitigation
+- `get_techniques_for_mitigation` - Find techniques benefiting from a mitigation
+- `get_mitigations_for_technique` - Shortcut: list mitigation IDs directly from a technique ID
+- `get_objectives_for_technique` - List objectives that a technique belongs to
 
 ### Objective Management Tools
 - `list_objectives` - List all investigation objectives
 - `get_techniques_for_objective` - Get techniques for an objective
 - `list_available_mappings` - Show available objective mappings
 - `load_objective_mapping` - Switch objective mapping
-- `get_current_mapping` - Get active mapping name
+
+### Citation Tools
+- `get_citation` - Retrieve formatted citation text for a DFCite-XXXX reference
+- `resolve_inline_citations` - Replace [DFCite-XXXX] markers in text with full citation strings
 
 ### Bulk Retrieval Tools
-- `get_bulk_techniques_list` - Get all technique IDs and names
-- `get_bulk_weaknesses_list` - Get all weakness IDs and names
-- `get_bulk_mitigations_list` - Get all mitigation IDs and names
-- `get_bulk_techniques_full` - Get complete technique details
-- `get_bulk_weaknesses_full` - Get complete weakness details
-- `get_bulk_mitigations_full` - Get complete mitigation details
+- `get_all_techniques_with_name_and_id` - Get all technique IDs and names
+- `get_all_weaknesses_with_name_and_id` - Get all weakness IDs and names
+- `get_all_mitigations_with_name_and_id` - Get all mitigation IDs and names
+- `get_all_techniques_with_full_detail` - Get complete details for all techniques
+- `get_all_weaknesses_with_full_detail` - Get complete details for all weaknesses
+- `get_all_mitigations_with_full_detail` - Get complete details for all mitigations
 
 ## Quick Examples
 

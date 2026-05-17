@@ -90,9 +90,9 @@ python3 src/server.py
 
 SOLVE-IT provides a structured approach to digital forensics investigations through:
 
-- **Techniques** (T1001, T1002...): Digital forensic investigation methods
-- **Weaknesses** (W1001, W1002...): Potential problems/limitations of techniques  
-- **Mitigations** (M1001, M1002...): Ways to address weaknesses
+- **Techniques** (DFT-1001, DFT-1002...): Digital forensic investigation methods
+- **Weaknesses** (DFW-1001, DFW-1002...): Potential problems/limitations of techniques
+- **Mitigations** (DFM-1001, DFM-1002...): Ways to address weaknesses
 - **Objectives**: Categories that organize techniques by investigation goals
 
 **Learn more**: [SOLVE-IT-DF/solve-it](https://github.com/SOLVE-IT-DF/solve-it)

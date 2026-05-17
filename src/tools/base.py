@@ -111,7 +111,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from utils.errors import ToolError
 from utils.logging import get_logger
@@ -137,6 +137,8 @@ class ToolParams(BaseModel):
     - **Documentation**: Field descriptions become part of the tool's API docs
     - **Type safety**: Provides full type hints for tool implementation
     """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
 
 
 P = TypeVar("P", bound=ToolParams)
