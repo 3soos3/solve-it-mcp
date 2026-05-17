@@ -122,7 +122,8 @@ ENV PYTHONPATH=/app/src \
     LOG_FORMAT=json \
     TMPDIR=/tmp/app-tmp \
     IMAGE_TAG=${SOLVE_IT_SHA}-${MCP_VERSION} \
-    FORENSIC_METADATA=true
+    MCP_VERSION=${MCP_VERSION} \
+    FORENSIC_METADATA=false
 
 # Expose HTTP port (default 8000, configurable via HTTP_PORT)
 EXPOSE 8000
