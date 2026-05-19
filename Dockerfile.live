@@ -70,6 +70,7 @@ RUN apk add --no-cache \
         ca-certificates \
         libffi \
         openssl \
+        unzip \
         wget && \
     # Create non-root user for security
     addgroup -g 1000 mcpuser && \
