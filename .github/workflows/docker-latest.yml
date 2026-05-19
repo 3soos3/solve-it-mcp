@@ -1,13 +1,13 @@
 name: Docker - Build & Publish :latest
 
-# Weekly rebuild of the :latest image with baked-in SOLVE-IT data.
+# Monthly rebuild of the :latest image with baked-in SOLVE-IT data.
 # Smart rebuild: only builds if SOLVE-IT dataset or MCP repo has changed.
 # Publishes :latest and versioned tags to GHCR and Docker Hub.
 # Post-publish: Trivy scan (all arches), Cosign sign, SBOM, SLSA provenance.
 
 on:
   schedule:
-    - cron: '0 0 * * 0'   # Every Sunday 00:00 UTC
+    - cron: '0 0 1 * *'   # Monthly on the 1st at 00:00 UTC
   workflow_dispatch:
     inputs:
       force:

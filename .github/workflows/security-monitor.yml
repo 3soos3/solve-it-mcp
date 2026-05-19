@@ -1,12 +1,12 @@
-name: Security Monitor - Daily CVE Scan
+name: Security Monitor - Biweekly CVE Scan
 
-# Daily scan of published :live and :latest images for new CVEs.
+# Biweekly scan of published :live and :latest images for new CVEs.
 # Runs against all 3 architectures on GHCR.
 # Automatically opens a GitHub issue if CRITICAL CVEs are found.
 
 on:
   schedule:
-    - cron: '0 2 * * *'   # Daily at 02:00 UTC
+    - cron: '0 2 1,15 * *'   # Every two weeks (1st and 15th) at 02:00 UTC
   workflow_dispatch:
 
 concurrency:

@@ -3,8 +3,8 @@ name: OpenSSF Scorecard - Security Rating
 on:
   branch_protection_rule:
   schedule:
-    # Weekly on Monday at 8 AM UTC
-    - cron: '0 8 * * 1'
+    # Monthly on the 1st at 08:00 UTC
+    - cron: '0 8 1 * *'
   workflow_dispatch:
 
 permissions: read-all
