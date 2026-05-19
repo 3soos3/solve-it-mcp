@@ -1,15 +1,14 @@
-# SOLVE-IT MCP Server Documentation
+# SOLVE-IT MCP Server
 
-Welcome to the comprehensive documentation for the **SOLVE-IT MCP Server** - a production-ready Model Context Protocol server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base.
+**Production-ready MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base.**
 
-## What is SOLVE-IT MCP Server?
+SOLVE-IT MCP Server exposes the SOLVE-IT knowledge base through 24 specialized tools, enabling LLMs to assist with digital forensics investigations by providing structured access to:
 
-SOLVE-IT MCP Server is a production-ready implementation that exposes the entire SOLVE-IT digital forensics knowledge base through 20+ specialized tools. It enables Large Language Models (LLMs) to assist with digital forensics investigations by providing programmatic access to:
-
-- **Techniques** (DFT-1001, DFT-1002...): Digital forensic investigation methods
-- **Weaknesses** (DFW-1001, DFW-1002...): Potential problems/limitations of techniques
-- **Mitigations** (DFM-1001, DFM-1002...): Ways to address weaknesses
-- **Objectives**: Categories that organize techniques by investigation goals
+- **Techniques** (DFT-XXXX) — digital forensic investigation methods
+- **Weaknesses** (DFW-XXXX) — potential problems or limitations of techniques
+- **Mitigations** (DFM-XXXX) — ways to address weaknesses
+- **Citations** (DFCite-XXXX) — academic and industry references
+- **Objectives** — investigation workflow phases that group techniques
 
 ## Quick Navigation
 
@@ -55,7 +54,11 @@ SOLVE-IT MCP Server is a production-ready implementation that exposes the entire
 
 - :material-tools: **[Tools Overview](reference/tools-overview.md)**
 
-    Complete reference for all 20+ MCP tools
+    Complete reference for all 24 MCP tools
+
+- :material-variable: **[Environment Variables](reference/environment-variables.md)**
+
+    All configuration options explained
 
 </div>
 
@@ -73,7 +76,7 @@ SOLVE-IT MCP Server is a production-ready implementation that exposes the entire
 
 - :material-file-code: **[Implementation Details](architecture/implementation.md)**
 
-    Technical implementation deep-dive
+    CI/CD and release pipeline overview
 
 - :material-test-tube: **[Testing Guide](development/testing-guide.md)**
 
@@ -83,17 +86,17 @@ SOLVE-IT MCP Server is a production-ready implementation that exposes the entire
 
 ## Key Features
 
-- **🔒 Production-Ready Security**: Alpine Linux base with zero CVEs, comprehensive security scanning
-- **🌐 Multi-Platform Support**: Native images for AMD64, ARM64, and ARMv7 (Raspberry Pi)
-- **📊 OpenTelemetry Observability**: Built-in metrics, tracing, and logging
-- **⚡ High Performance**: Optimized shared knowledge base, sub-second response times
-- **🔄 Dual Transport Modes**: HTTP/SSE for Kubernetes, stdio for desktop clients
-- **📦 Minimal Footprint**: 60MB Alpine-based image (highly optimized)
-- **☸️ Kubernetes Native**: Production-grade Helm charts with health checks and auto-scaling
+- **Production-Ready Security**: Alpine Linux base, zero CVEs, comprehensive security scanning
+- **Multi-Platform Support**: Native images for `linux/amd64`, `linux/arm64`, `linux/arm/v7`
+- **OpenTelemetry Observability**: Built-in metrics, tracing, and structured logging
+- **High Performance**: Shared knowledge base singleton — ~1 second startup, sub-second queries
+- **Dual Transport**: `http` for Kubernetes and web clients; `stdio` for Claude Desktop and local tools
+- **Minimal Footprint**: ~60 MB Alpine-based image
+- **Kubernetes Native**: Production-grade Helm charts with health checks and HPA
 
 ## About SOLVE-IT
 
-SOLVE-IT (Standardized Framework for Investigation and Law Enforcement Operations in Technology) is a systematic digital forensics knowledge base inspired by MITRE ATT&CK. It provides comprehensive mappings of investigation techniques, their weaknesses, and mitigations.
+SOLVE-IT is a systematic digital forensics knowledge base inspired by MITRE ATT&CK. It provides structured mappings of investigation techniques, their weaknesses, and mitigations.
 
 **Learn more**: [SOLVE-IT-DF/solve-it on GitHub](https://github.com/SOLVE-IT-DF/solve-it)
 
@@ -118,7 +121,7 @@ This project is licensed under the MIT License. If you use this software in fore
 }
 ```
 
-See the [For Researchers](guides/for-researchers.md) guide for detailed citation information.
+See the [For Researchers](guides/for-researchers.md) guide for full citation guidance.
 
 ## Need Help?
 

@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.4
-# Production Dockerfile for SOLVE-IT MCP Server - Alpine Linux
-# Multi-stage build for minimal image size and maximum security
+# Release Dockerfile for SOLVE-IT MCP Server - Alpine Linux
+# Builds a pinned release image using an official SOLVE-IT release tag.
+# SOLVE_IT_VERSION is always overridden with the release tag (e.g. v0.2025-10).
 # Supports multi-architecture: linux/amd64, linux/arm64, linux/arm/v7
 
 # ============================================================================
@@ -30,7 +31,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /build
 COPY pyproject.toml README.md ./
 
-# Fetch SOLVE-IT data
+# Fetch SOLVE-IT data at the specified release tag
 RUN git clone --depth 1 --branch ${SOLVE_IT_VERSION} \
     https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it-main && \
     rm -rf /tmp/solve-it-main/.git
@@ -58,7 +59,7 @@ FROM python:3.12-alpine AS runtime
 # Build arguments for flexibility
 ARG BUILD_DATE
 ARG VCS_REF
-ARG VERSION=stable
+ARG VERSION=release
 ARG BUILD_DATE_RFC3339=${BUILD_DATE:-1970-01-01T00:00:00Z}
 ARG SOLVE_IT_SHA=unknown
 ARG MCP_VERSION=unknown
@@ -109,6 +110,9 @@ COPY --from=builder --chown=mcpuser:mcpuser /tmp/solve-it-main /app/solve-it-mai
 USER mcpuser
 
 # Environment variables with sensible defaults
+# FORENSIC_METADATA=true: release images embed audit/compliance traceability
+# metadata in tool responses. Standard (:latest) and live images leave this
+# false to keep responses lightweight.
 ENV PYTHONPATH=/app/src \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -123,7 +127,7 @@ ENV PYTHONPATH=/app/src \
     TMPDIR=/tmp/app-tmp \
     IMAGE_TAG=${SOLVE_IT_SHA}-${MCP_VERSION} \
     MCP_VERSION=${MCP_VERSION} \
-    FORENSIC_METADATA=false
+    FORENSIC_METADATA=true
 
 # Expose HTTP port (default 8000, configurable via HTTP_PORT)
 EXPOSE 8000

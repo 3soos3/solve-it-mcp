@@ -1,38 +1,20 @@
-# Kubernetes Deployment Guide - SOLVE-IT MCP Server
+# Kubernetes Deployment
 
-This guide covers deploying the SOLVE-IT MCP Server to Kubernetes clusters.
-
-## Table of Contents
-
-- [Quick Start with Helm](#quick-start-with-helm)
-- [Manual Deployment](#manual-deployment)
-- [Configuration](#configuration)
-- [Health Checks](#health-checks)
-- [Scaling](#scaling)
-- [Observability](#observability)
-- [Troubleshooting](#troubleshooting)
-
----
+This guide covers deploying SOLVE-IT MCP Server to Kubernetes.
 
 ## Quick Start with Helm
 
-**Recommended**: Use the official Helm chart for production deployments.
-
-### Install Helm Chart
+The recommended approach for production deployments uses the official Helm chart.
 
 ```bash
 # Add the chart repository
 helm repo add solveit https://3soos3.github.io/solveit-charts
 helm repo update
 
-# Install with default values (development-friendly)
+# Install with defaults
 helm install solveit-mcp solveit/solveit-mcp
 
-# Or install for specific environment
-helm install solveit-mcp solveit/solveit-mcp \
-  -f https://raw.githubusercontent.com/3soos3/solveit-charts/main/charts/solveit-mcp/values.prod.yaml
-
-# Install to specific namespace
+# Install to a specific namespace
 helm install solveit-mcp solveit/solveit-mcp \
   --namespace mcp \
   --create-namespace
@@ -40,152 +22,131 @@ helm install solveit-mcp solveit/solveit-mcp \
 
 ### Environment-Specific Installations
 
-The Helm chart provides pre-configured values files for different environments:
-
-#### Demo Environment (Minimal Resources)
-
-Perfect for demonstrations, workshops, and resource-constrained environments.
+**Demo (minimal resources):**
 
 ```bash
 helm install solveit-mcp solveit/solveit-mcp \
   -f https://raw.githubusercontent.com/3soos3/solveit-charts/main/charts/solveit-mcp/values.demo.yaml
 ```
 
-**Features:**
-- Single replica (no HA)
-- Minimal CPU/memory requests
-- No autoscaling
-- OpenTelemetry disabled
-- Simple configuration
-
-#### Staging Environment (Testing & Validation)
-
-For CI/CD testing, QA validation, and pre-production verification.
+**Staging (2 replicas, observability enabled):**
 
 ```bash
 helm install solveit-mcp-staging solveit/solveit-mcp \
   -f https://raw.githubusercontent.com/3soos3/solveit-charts/main/charts/solveit-mcp/values.staging.yaml \
-  --namespace staging \
-  --create-namespace
+  --namespace staging --create-namespace
 ```
 
-**Features:**
-- 2 replicas (test HA)
-- Moderate resources
-- Autoscaling 2-5 replicas
-- Full observability enabled
-- Ingress enabled with staging hostname
-
-#### Production Environment (Full HA)
-
-High-availability production deployment.
+**Production (3 replicas, HA, TLS):**
 
 ```bash
 helm install solveit-mcp solveit/solveit-mcp \
   -f https://raw.githubusercontent.com/3soos3/solveit-charts/main/charts/solveit-mcp/values.prod.yaml \
-  --namespace production \
-  --create-namespace
+  --namespace production --create-namespace
 ```
-
-**Features:**
-- 3 replicas (high availability)
-- Full resource limits
-- Autoscaling 3-10 replicas (CPU-based)
-- Full observability (OpenTelemetry)
-- Ingress with TLS
-- Production-grade configuration
 
 ### Verify Installation
 
 ```bash
-# Check deployment status
 helm status solveit-mcp
-
-# Watch pods come up
 kubectl get pods -l app.kubernetes.io/name=solveit-mcp --watch
 
-# Test the service
+# Test via port-forward
 kubectl port-forward svc/solveit-mcp 8000:8000
 curl http://localhost:8000/healthz
 ```
 
-### Chart Repository
-
-- **Repository**: https://github.com/3soos3/solveit-charts
-- **Chart Documentation**: https://github.com/3soos3/solveit-charts/tree/main/charts/solveit-mcp
-- **Values Reference**: https://github.com/3soos3/solveit-charts/blob/main/charts/solveit-mcp/README.md
+**Chart Repository**: https://github.com/3soos3/solveit-charts
 
 ---
 
 ## Manual Deployment
 
-For cases where you need to deploy without Helm, see the example manifests in `examples/k8s/`.
-
-### Simple Deployment
+For deployments without Helm, use the example manifests from `examples/k8s/`.
 
 ```bash
-# Apply basic deployment
 kubectl apply -f examples/k8s/deployment-simple.yaml
-
-# Verify deployment
-kubectl get deployment solveit-mcp
-kubectl get pods -l app=solveit-mcp
-
-# Expose via service
 kubectl expose deployment solveit-mcp --port=8000 --target-port=8000
-
-# Port-forward for testing
 kubectl port-forward deployment/solveit-mcp 8000:8000
 ```
-
-See `examples/k8s/README.md` for more detailed examples.
 
 ---
 
 ## Configuration
 
-### Environment Variables
-
-Configure the server using environment variables in your deployment:
+### Deployment Manifest
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
+metadata:
+  name: solveit-mcp
 spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: solveit-mcp
   template:
+    metadata:
+      labels:
+        app: solveit-mcp
     spec:
       containers:
       - name: solveit-mcp
-        image: 3soos3/solve-it-mcp:stable
+        image: 3soos3/solve-it-mcp:latest
+        ports:
+        - containerPort: 8000
+          name: http
         env:
-        # Transport (always HTTP in Kubernetes)
         - name: MCP_TRANSPORT
           value: "http"
-        
-        # HTTP configuration
         - name: HTTP_HOST
           value: "0.0.0.0"
         - name: HTTP_PORT
           value: "8000"
-        
-        # Logging
         - name: LOG_LEVEL
           value: "INFO"
         - name: LOG_FORMAT
           value: "json"
-        
-        # OpenTelemetry
         - name: OTEL_ENABLED
           value: "true"
         - name: OTEL_EXPORTER_OTLP_ENDPOINT
           value: "http://otel-collector.observability.svc.cluster.local:4317"
         - name: ENVIRONMENT
           value: "production"
+        resources:
+          requests:
+            cpu: 250m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
 ```
 
 ### Kubernetes Downward API
 
-Inject pod/node metadata for better observability:
+Inject pod metadata for better observability:
 
 ```yaml
 env:
@@ -205,9 +166,7 @@ env:
 
 The Helm chart configures this automatically.
 
-### ConfigMaps
-
-For complex configurations:
+### ConfigMap
 
 ```yaml
 apiVersion: v1
@@ -235,29 +194,19 @@ spec:
 
 ## Health Checks
 
-### Liveness Probe
-
-Restarts the pod if the server becomes unresponsive:
-
 ```yaml
 livenessProbe:
   httpGet:
-    path: /healthz  # Kubernetes standard endpoint
+    path: /healthz
     port: 8000
   initialDelaySeconds: 10
   periodSeconds: 30
   timeoutSeconds: 3
   failureThreshold: 3
-```
 
-### Readiness Probe
-
-Removes pod from service if not ready to handle requests:
-
-```yaml
 readinessProbe:
   httpGet:
-    path: /readyz  # Kubernetes standard endpoint
+    path: /readyz
     port: 8000
   initialDelaySeconds: 5
   periodSeconds: 10
@@ -265,9 +214,8 @@ readinessProbe:
   failureThreshold: 3
 ```
 
-Both probes are configured automatically in the Helm chart.
-
-**Note**: The server supports both `/healthz` and `/readyz` (Kubernetes standard) as well as `/health` and `/ready` (legacy, deprecated) for backward compatibility.
+!!! note
+    Use `/healthz` (liveness) and `/readyz` (readiness) — these are the primary endpoints. The legacy endpoints `/health` and `/ready` are deprecated.
 
 ---
 
@@ -276,16 +224,10 @@ Both probes are configured automatically in the Helm chart.
 ### Manual Scaling
 
 ```bash
-# Scale to 5 replicas
 kubectl scale deployment solveit-mcp --replicas=5
-
-# Verify scaling
-kubectl get deployment solveit-mcp
 ```
 
-### Horizontal Pod Autoscaler (HPA)
-
-The Helm chart includes HPA configuration. Enable it:
+### Horizontal Pod Autoscaler
 
 ```yaml
 autoscaling:
@@ -299,74 +241,16 @@ Or apply manually:
 
 ```bash
 kubectl autoscale deployment solveit-mcp \
-  --min=3 \
-  --max=10 \
-  --cpu-percent=70
+  --min=3 --max=10 --cpu-percent=70
 ```
 
-### Resource Limits
-
-Always set resource requests and limits:
-
-```yaml
-resources:
-  requests:
-    cpu: 250m
-    memory: 256Mi
-  limits:
-    cpu: 1000m
-    memory: 512Mi
-```
+The server runs in stateless mode by default, enabling true horizontal scaling across pods.
 
 ---
 
 ## Observability
 
-### OpenTelemetry Integration
-
-The server exports telemetry to an OpenTelemetry collector:
-
-**Requirements:**
-1. Deploy OpenTelemetry Collector in your cluster
-2. Configure the endpoint via environment variable
-
-**Example OTel Collector deployment:**
-
-```bash
-# Install OpenTelemetry Operator
-kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/latest/download/opentelemetry-operator.yaml
-
-# Deploy collector (example)
-kubectl apply -f - <<EOF
-apiVersion: opentelemetry.io/v1alpha1
-kind: OpenTelemetryCollector
-metadata:
-  name: otel-collector
-  namespace: observability
-spec:
-  mode: daemonset
-  config: |
-    receivers:
-      otlp:
-        protocols:
-          grpc:
-          http:
-    exporters:
-      logging:
-      prometheus:
-        endpoint: "0.0.0.0:8889"
-    service:
-      pipelines:
-        traces:
-          receivers: [otlp]
-          exporters: [logging]
-        metrics:
-          receivers: [otlp]
-          exporters: [logging, prometheus]
-EOF
-```
-
-**Configure SOLVE-IT MCP to use the collector:**
+### OpenTelemetry
 
 ```yaml
 env:
@@ -374,15 +258,15 @@ env:
   value: "http://otel-collector.observability.svc.cluster.local:4317"
 ```
 
+Install the OpenTelemetry Operator:
+
+```bash
+kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/latest/download/opentelemetry-operator.yaml
+```
+
 ### Logging
 
-Logs are written to stdout in JSON format. Collect them with your preferred tool:
-
-- **Fluentd/Fluent Bit**
-- **Promtail + Loki**
-- **CloudWatch/Stackdriver** (cloud-native)
-
-Filter logs by label:
+Logs are written to stdout in JSON format. Collect with Fluentd, Fluent Bit, Promtail, or your cloud provider's native log collector.
 
 ```bash
 kubectl logs -l app.kubernetes.io/name=solveit-mcp --tail=100 -f
@@ -395,83 +279,52 @@ kubectl logs -l app.kubernetes.io/name=solveit-mcp --tail=100 -f
 ### Pods Not Starting
 
 ```bash
-# Check pod status
 kubectl get pods -l app.kubernetes.io/name=solveit-mcp
-
-# View pod events
 kubectl describe pod <pod-name>
-
-# Check logs
 kubectl logs <pod-name>
 ```
 
-Common issues:
-- Image pull errors (check `imagePullPolicy` and credentials)
-- Resource limits too low (pod OOMKilled)
-- Invalid configuration (check environment variables)
+Common causes:
+
+- Image pull errors — check `imagePullPolicy` and credentials
+- OOMKilled — increase memory limit
+- Invalid env var — check `MCP_TRANSPORT=http` is set
 
 ### Health Checks Failing
 
 ```bash
-# Test health endpoint from another pod (Kubernetes standard)
+# Test from another pod
 kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
   curl http://solveit-mcp:8000/healthz
 
-# Or test legacy endpoint (deprecated)
-kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
-  curl http://solveit-mcp:8000/health
-
-# Check if MCP_TRANSPORT=http
+# Check transport mode
 kubectl exec <pod-name> -- env | grep MCP_TRANSPORT
 ```
 
 ### Service Not Accessible
 
 ```bash
-# Check service endpoints
 kubectl get endpoints solveit-mcp
-
-# Verify service configuration
 kubectl describe service solveit-mcp
 
-# Test from another pod (Kubernetes standard)
+# Test from inside the cluster
 kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
   curl http://solveit-mcp.default.svc.cluster.local:8000/healthz
 ```
 
-### High Memory Usage
-
-Adjust resource limits:
-
-```yaml
-resources:
-  limits:
-    memory: 1Gi  # Increase from 512Mi
-  requests:
-    memory: 512Mi
-```
-
-Or check for memory leaks in logs:
+### ImagePullBackOff for GHCR
 
 ```bash
-kubectl logs <pod-name> | grep -i "memory\|oom"
+kubectl create secret docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<username> \
+  --docker-password=<token>
 ```
 
 ---
 
 ## Next Steps
 
-- **Helm Chart Documentation**: https://github.com/3soos3/solveit-charts
-- **Production Best Practices**: Review the `values.prod.yaml` file
-- **Observability Setup**: Configure OpenTelemetry collector for your environment
-- **Ingress/TLS**: Set up ingress controller and TLS certificates
-
----
-
-## Resources
-
-- **Helm Chart Repository**: https://github.com/3soos3/solveit-charts
-- **Docker Images**: https://hub.docker.com/r/3soos3/solve-it-mcp
-- **GHCR Images (Advanced)**: https://github.com/3soos3/solve-it-mcp/pkgs/container/solve-it-mcp
-- **MCP Specification**: https://modelcontextprotocol.io
-- **SOLVE-IT Dataset**: https://github.com/SOLVE-IT-DF/solve-it
+- [Helm Chart Documentation](https://github.com/3soos3/solveit-charts)
+- [Docker Deployment](docker.md) — image types and tags
+- [Environment Variables Reference](../reference/environment-variables.md)

@@ -1,21 +1,17 @@
 # syntax=docker/dockerfile:1.4
-# "Live" Dockerfile for SOLVE-IT MCP Server
-# Data is NOT baked in at build time.
-# At container start the entrypoint fetches fresh data from data.solveit-df.org,
-# then schedules a daily refresh via crond.
-#
-# Build:
-#   docker build -f Dockerfile.live -t solve-it-mcp:live .
-#
-# Run:
-#   docker run -e MCP_TRANSPORT=http -p 8000:8000 solve-it-mcp:live
+# Live Dockerfile for SOLVE-IT MCP Server - Alpine Linux
+# Fetches SOLVE-IT data from data.solveit-df.org at container startup (no data baked in).
+# Multi-stage build for minimal image size and maximum security.
+# Supports multi-architecture: linux/amd64, linux/arm64, linux/arm/v7
 
 # ============================================================================
-# Stage 1: Builder — install Python dependencies only (no data)
+# Stage 1: Builder
 # ============================================================================
 FROM python:3.12-alpine AS builder
 
-# Install build dependencies
+ARG MCP_VERSION=unknown
+
+# Install build dependencies (will be removed in same layer)
 RUN apk add --no-cache --virtual .build-deps \
     build-base \
     libffi-dev \
@@ -28,25 +24,21 @@ RUN apk add --no-cache --virtual .build-deps \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+# Copy pyproject.toml and README for pip install
 WORKDIR /build
 COPY pyproject.toml README.md ./
 
-# Clone solve-it only to get its requirements (no data needed at build time)
-RUN git clone --depth 1 --branch main \
-    https://github.com/SOLVE-IT-DF/solve-it.git /tmp/solve-it-src && \
-    rm -rf /tmp/solve-it-src/.git
-
-# Install all Python deps in one layer, then clean up pip
+# Install all dependencies (app only — no SOLVE-IT data baked in)
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir . && \
-    grep -v '^\s*pytest' /tmp/solve-it-src/requirements.txt | \
-        pip install --no-cache-dir -r /dev/stdin && \
+    # Cleanup to reduce venv size
     pip uninstall -y pip setuptools wheel && \
     find /opt/venv -type f -name '*.pyc' -delete && \
     find /opt/venv -type f -name '*.pyo' -delete && \
     find /opt/venv -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
+# Remove build dependencies
 RUN apk del .build-deps
 
 # ============================================================================
@@ -54,67 +46,66 @@ RUN apk del .build-deps
 # ============================================================================
 FROM python:3.12-alpine AS runtime
 
+# Build arguments for flexibility
 ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=live
 ARG BUILD_DATE_RFC3339=${BUILD_DATE:-1970-01-01T00:00:00Z}
+ARG MCP_VERSION=unknown
 
+# Metadata labels following OCI Image Spec
 LABEL org.opencontainers.image.created="${BUILD_DATE_RFC3339}" \
       org.opencontainers.image.url="https://github.com/3soos3/solve-it-mcp" \
+      org.opencontainers.image.documentation="https://github.com/3soos3/solve-it-mcp/blob/main/README.md" \
       org.opencontainers.image.source="https://github.com/3soos3/solve-it-mcp" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${VCS_REF}" \
-      org.opencontainers.image.title="SOLVE-IT MCP Server (live data)" \
-      org.opencontainers.image.description="MCP server with daily-refreshed SOLVE-IT data from data.solveit-df.org" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.title="SOLVE-IT MCP Server (Live)" \
+      org.opencontainers.image.description="MCP server providing LLM access to the SOLVE-IT Digital Forensics Knowledge Base (data fetched at runtime)" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.base.name="docker.io/library/python:3.12-alpine"
 
-# Runtime deps + crond (part of busybox, already present in Alpine)
+# Install minimal runtime dependencies and create non-root user
 RUN apk add --no-cache \
         ca-certificates \
         libffi \
-        openssl && \
+        openssl \
+        unzip \
+        wget && \
+    # Create non-root user for security
     addgroup -g 1000 mcpuser && \
     adduser -D -u 1000 -G mcpuser -h /home/mcpuser -s /bin/sh mcpuser && \
+    # Security hardening
     chmod 750 /home/mcpuser && \
-    # Data dir (writable — populated at runtime by entrypoint)
-    mkdir -p /app/solve-it-main/data/techniques \
-             /app/solve-it-main/data/weaknesses \
-             /app/solve-it-main/data/mitigations && \
-    chown -R mcpuser:mcpuser /app/solve-it-main && \
-    # Temp dirs
+    # Create tmp directories for runtime
     mkdir -p /tmp/app-cache /tmp/app-tmp && \
     chown -R mcpuser:mcpuser /tmp/app-cache /tmp/app-tmp && \
-    # crond crontab directory (mcpuser needs to write here)
-    mkdir -p /etc/crontabs && \
-    chown -R root:mcpuser /etc/crontabs && \
-    chmod 770 /etc/crontabs && \
+    # Clean apk cache
     rm -rf /var/cache/apk/*
 
+# Set working directory
 WORKDIR /app
 
+# Copy virtual environment from builder stage
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy solve_it_library Python package (needed at runtime for imports)
-# Data files are NOT copied — fetched at container start by the entrypoint
-COPY --from=builder --chown=mcpuser:mcpuser /tmp/solve-it-src/solve_it_library /app/solve-it-main/solve_it_library
-
+# Copy application source code
 COPY --chown=mcpuser:mcpuser src/ /app/src/
-COPY --chown=mcpuser:mcpuser scripts/fetch_solveit_data.py /app/scripts/fetch_solveit_data.py
-COPY --chown=mcpuser:mcpuser docker/entrypoint-live.sh /app/entrypoint-live.sh
-RUN chmod +x /app/entrypoint-live.sh
 
+# Copy entrypoint script that fetches live data at startup
+COPY --chown=mcpuser:mcpuser docker-entrypoint-live.sh /app/docker-entrypoint-live.sh
+RUN chmod +x /app/docker-entrypoint-live.sh
+
+# Switch to non-root user
 USER mcpuser
 
+# Environment variables with sensible defaults
 ENV PYTHONPATH=/app/src \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    # SOLVE_IT_DATA_PATH: points to the data/ subdir (what KnowledgeBase receives via env)
-    SOLVE_IT_DATA_PATH=/app/solve-it-main/data \
-    # SOLVE_IT_BASE_DIR: base dir passed to fetch_solveit_data.py --output
-    SOLVE_IT_BASE_DIR=/app/solve-it-main \
-    SOLVE_IT_DATA_URL=https://data.solveit-df.org/solve-it.json \
-    SOLVE_IT_REFRESH_HOUR=3 \
+    SOLVE_IT_DATA_PATH=/tmp/app-cache/solve-it/data \
+    SOLVE_IT_DATA_URL=https://data.solveit-df.org/solve-it-latest.zip \
     MCP_TRANSPORT=http \
     HTTP_HOST=0.0.0.0 \
     HTTP_PORT=8000 \
@@ -122,15 +113,22 @@ ENV PYTHONPATH=/app/src \
     ENVIRONMENT=production \
     LOG_LEVEL=INFO \
     LOG_FORMAT=json \
-    TMPDIR=/tmp/app-tmp
+    TMPDIR=/tmp/app-tmp \
+    IMAGE_TAG=live-${MCP_VERSION} \
+    MCP_VERSION=${MCP_VERSION} \
+    FORENSIC_METADATA=false
 
+# Expose HTTP port (default 8000, configurable via HTTP_PORT)
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=5 \
+# Health check using wget (built into Alpine, no curl needed)
+HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
     CMD if [ "$MCP_TRANSPORT" = "http" ]; then \
             wget --no-verbose --tries=1 --spider http://localhost:${HTTP_PORT}/healthz || exit 1; \
         else \
             exit 0; \
         fi
 
-ENTRYPOINT ["/app/entrypoint-live.sh"]
+# Entrypoint fetches live data then starts the server
+ENTRYPOINT ["/app/docker-entrypoint-live.sh"]
+CMD ["--transport", "http"]

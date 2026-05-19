@@ -1,0 +1,251 @@
+name: Docker - Build & Publish Release
+
+# Builds and publishes versioned release images on git tags (v*).
+# Publishes versioned tag, :latest, and SHA tag to GHCR and Docker Hub.
+# Post-publish: Trivy scan (all arches), Cosign sign, SBOM, SLSA provenance.
+# SBOM retention: forever (0 days) — forensic evidence may be needed years later.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Additional tag to apply'
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOCKERHUB_REPO: 3soos3/solve-it-mcp
+  GHCR_REPO: ghcr.io/${{ github.repository_owner }}/solve-it-mcp
+  PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
+
+jobs:
+  check:
+    name: Extract release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      mcp_sha: ${{ steps.meta.outputs.mcp_sha }}
+      solveit_version: ${{ steps.meta.outputs.solveit_version }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
+
+      - name: Extract metadata
+        id: meta
+        run: |
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          VERSION="dev"
+
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+
+          SOLVEIT_VERSION=$(curl -s https://api.github.com/repos/SOLVE-IT-DF/solve-it/releases/latest | jq -r '.tag_name // empty' | sed 's/^v//')
+          if [ -z "$SOLVEIT_VERSION" ]; then
+            SOLVEIT_VERSION="0.2025-10"
+          fi
+
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "image_tag=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "mcp_sha=${GIT_COMMIT}" >> $GITHUB_OUTPUT
+          echo "solveit_version=${SOLVEIT_VERSION}" >> $GITHUB_OUTPUT
+
+          echo "::notice::Version: ${VERSION}"
+          echo "::notice::SHA: ${GIT_COMMIT}"
+          echo "::notice::SOLVE-IT: ${SOLVEIT_VERSION}"
+
+  build:
+    name: Build & Publish release
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          fetch-depth: 0
+
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v5.1.0
+        with:
+          context: .
+          file: Dockerfile.release
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_REPO }}:${{ needs.check.outputs.image_tag }}
+            ${{ env.DOCKERHUB_REPO }}:latest
+            ${{ env.GHCR_REPO }}:${{ needs.check.outputs.image_tag }}
+            ${{ env.GHCR_REPO }}:latest
+            ${{ env.GHCR_REPO }}:sha-${{ needs.check.outputs.mcp_sha }}
+          build-args: |
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            VCS_REF=${{ needs.check.outputs.mcp_sha }}
+            VERSION=${{ needs.check.outputs.version }}
+            SOLVE_IT_SOURCE=github
+            SOLVE_IT_VERSION=main
+          labels: |
+            org.opencontainers.image.revision=${{ needs.check.outputs.mcp_sha }}
+          cache-from: type=gha,scope=release
+          cache-to: type=gha,mode=max,scope=release
+          provenance: true
+          sbom: true
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKERHUB_REPO }}
+          readme-filepath: ./docs/deployment/docker.md
+        continue-on-error: true
+
+      - name: Summary
+        run: |
+          echo "## Release published" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Version | \`${{ needs.check.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | \`${{ needs.check.outputs.image_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP SHA | \`${{ needs.check.outputs.mcp_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| SOLVE-IT | \`${{ needs.check.outputs.solveit_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Digest | \`${{ steps.build.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
+
+  trivy-scan:
+    name: Trivy scan (${{ matrix.platform }})
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64, linux/arm/v7]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull and export image for platform
+        run: |
+          PLATFORM_TAG=$(echo "${{ matrix.platform }}" | tr '/' '-' | sed 's/linux-//')
+          docker pull --platform ${{ matrix.platform }} \
+            ${{ env.GHCR_REPO }}:${{ needs.check.outputs.image_tag }}
+          docker save ${{ env.GHCR_REPO }}:${{ needs.check.outputs.image_tag }} \
+            -o /tmp/image-${PLATFORM_TAG}.tar
+          echo "PLATFORM_TAG=${PLATFORM_TAG}" >> $GITHUB_ENV
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          input: /tmp/image-${{ env.PLATFORM_TAG }}.tar
+          format: sarif
+          output: trivy-release-${{ env.PLATFORM_TAG }}.sarif
+          severity: CRITICAL,HIGH
+          scanners: vuln
+        continue-on-error: true
+      - uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: trivy-release-${{ env.PLATFORM_TAG }}.sarif
+          category: trivy-release-${{ env.PLATFORM_TAG }}
+        continue-on-error: true
+      - name: Fail on CRITICAL
+        run: |
+          COUNT=$(trivy image --input /tmp/image-${{ env.PLATFORM_TAG }}.tar \
+            --format json --severity CRITICAL --scanners vuln --quiet \
+            | jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length')
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::error::$COUNT CRITICAL CVEs on ${{ matrix.platform }}"
+            exit 1
+          fi
+          echo "::notice::✅ No CRITICAL CVEs on ${{ matrix.platform }}"
+
+  sign:
+    name: Sign & Attest
+    needs: [check, build, trivy-scan]
+    uses: ./.github/workflows/reusable-docker-sign.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      image_ref: ${{ needs.build.outputs.digest && format('{0}/solve-it-mcp:{1}@{2}', 'ghcr.io/3soos3', needs.check.outputs.image_tag, needs.build.outputs.digest) || '' }}
+      image_digest: ${{ needs.build.outputs.digest }}
+      ghcr_image: ghcr.io/${{ github.repository_owner }}/solve-it-mcp
+      retention_days: 0
+
+  trigger-zenodo:
+    name: Trigger Zenodo DOI Publication
+    runs-on: ubuntu-latest
+    needs: [check, build, trivy-scan, sign]
+    if: |
+      startsWith(github.ref, 'refs/tags/v') &&
+      !contains(github.ref, '-rc') &&
+      !contains(github.ref, '-beta') &&
+      !contains(github.ref, '-alpha') &&
+      !contains(github.ref, '-test') &&
+      !contains(github.ref, '-sandbox')
+    permissions:
+      contents: write
+    steps:
+      - name: Trigger Zenodo Publish Workflow
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v7
+        with:
+          github-token: ${{ secrets.WORKFLOW_PAT }}
+          script: |
+            const tag = '${{ github.ref_name }}';
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'zenodo-publish.yml',
+              ref: 'main',
+              inputs: {
+                tag: tag,
+                use_sandbox: 'false'
+              }
+            });
+            core.notice(`Triggered Zenodo publish for ${tag}`);
+
+      - name: Summary
+        run: |
+          echo "## Zenodo Release Triggered" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**SOLVE-IT**: \`${{ needs.check.outputs.solveit_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Monitor: https://github.com/${{ github.repository }}/actions/workflows/zenodo-publish.yml" >> $GITHUB_STEP_SUMMARY

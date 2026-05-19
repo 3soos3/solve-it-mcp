@@ -1,12 +1,11 @@
 name: License Compliance Check
 
 on:
-  pull_request:
   push:
     branches: [main]
   schedule:
-    # Weekly on Sunday at 1 AM UTC
-    - cron: '0 1 * * 0'
+    # Monthly on the 1st at 01:00 UTC
+    - cron: '0 1 1 * *'
   workflow_dispatch:
 
 env:
@@ -30,6 +29,9 @@ jobs:
             dependencies:
               - 'requirements.txt'
               - 'pyproject.toml'
+              - 'Dockerfile'
+              - 'Dockerfile.live'
+              - 'Dockerfile.release'
               - '.github/workflows/license-compliance.yml'
 
   check-licenses:

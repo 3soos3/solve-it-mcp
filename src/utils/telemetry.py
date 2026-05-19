@@ -265,7 +265,7 @@ class TelemetryManager:
 
         except Exception as e:
             logger.error(
-                f"Failed to configure OpenTelemetry: {e}. " f"Falling back to no-op telemetry.",
+                f"Failed to configure OpenTelemetry: {e}. Falling back to no-op telemetry.",
                 exc_info=True,
             )
             return self._get_noop_telemetry()
@@ -413,7 +413,8 @@ class TelemetryManager:
         """
         # OTLP metric exporter
         otlp_exporter = OTLPMetricExporter(
-            endpoint=self.config.otlp_endpoint, insecure=True  # Use TLS in production
+            endpoint=self.config.otlp_endpoint,
+            insecure=True,  # Use TLS in production
         )
 
         # Periodic export reader
@@ -427,7 +428,7 @@ class TelemetryManager:
         metrics.set_meter_provider(provider)
 
         logger.debug(
-            f"Metrics provider configured: " f"interval={self.config.metric_export_interval_ms}ms"
+            f"Metrics provider configured: interval={self.config.metric_export_interval_ms}ms"
         )
 
     def _configure_auto_instrumentation(self) -> None:

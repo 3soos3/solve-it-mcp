@@ -1,6 +1,7 @@
 """Base class for SOLVE-IT MCP tools."""
 
 from abc import ABC
+import datetime
 import os
 from pathlib import Path
 from typing import Any, TypeVar
@@ -211,3 +212,31 @@ class SolveItBaseTool(BaseTool[P], ABC):
             return f"Invalid input for {operation}. Please check your parameters."
         else:
             return f"An error occurred during {operation}. Please try again or contact support."
+
+    def _forensic_meta(self) -> dict | None:
+        """Return forensic metadata dict if FORENSIC_METADATA env var is enabled."""
+        if os.environ.get("FORENSIC_METADATA", "false").lower() not in ("1", "true", "yes"):
+            return None
+        return {
+            "image_tag": os.environ.get("IMAGE_TAG", "unknown"),
+            "mcp_version": os.environ.get("MCP_VERSION", "unknown"),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+        }
+
+    def _wrap_response(self, result: str) -> str:
+        """Inject forensic metadata into a JSON response string if enabled."""
+        meta = self._forensic_meta()
+        if meta is None:
+            return result
+        try:
+            import json
+
+            data = json.loads(result)
+            if isinstance(data, dict):
+                data["_meta"] = meta
+            elif isinstance(data, list):
+                return json.dumps({"results": data, "_meta": meta}, indent=2)
+            return json.dumps(data, indent=2)
+        except (json.JSONDecodeError, Exception):
+            # If not valid JSON (e.g. plain error string), append metadata as suffix
+            return result + f"\n[meta: {meta}]"

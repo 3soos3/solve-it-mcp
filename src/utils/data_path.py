@@ -115,8 +115,9 @@ def validate_solve_it_data_path(data_path: str) -> bool:
 
     # Check for objective mapping files (in data dir or its parent)
     mapping_files = ["solve-it.json", "carrier.json", "dfrws.json"]
-    has_mapping = any((path / mapping_file).exists() for mapping_file in mapping_files) or \
-                  any((path.parent / mapping_file).exists() for mapping_file in mapping_files)
+    has_mapping = any((path / mapping_file).exists() for mapping_file in mapping_files) or any(
+        (path.parent / mapping_file).exists() for mapping_file in mapping_files
+    )
 
     if not has_mapping:
         logger.warning(f"No objective mapping files found in {path} or {path.parent}")

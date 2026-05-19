@@ -1,0 +1,115 @@
+name: Reusable - Docker Sign & Attest
+
+# Signs a published image with Cosign (keyless, Rekor transparency log),
+# generates SBOM (SPDX + CycloneDX via Syft), attaches SBOM to GHCR,
+# and creates SLSA provenance attestation.
+# Called by docker-live.yml, docker-latest.yml, docker-release.yml.
+
+on:
+  workflow_call:
+    inputs:
+      image_ref:
+        description: 'Full image reference to sign (e.g. ghcr.io/owner/repo:tag@sha256:...)'
+        required: true
+        type: string
+      image_digest:
+        description: 'Image digest (sha256:...)'
+        required: true
+        type: string
+      ghcr_image:
+        description: 'GHCR image name without tag (e.g. ghcr.io/owner/solve-it-mcp)'
+        required: true
+        type: string
+      retention_days:
+        description: 'Artifact retention in days (0 = forever for releases)'
+        required: false
+        type: number
+        default: 90
+
+jobs:
+  sign-and-attest:
+    name: Sign & Attest
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # Required for keyless Cosign signing
+
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+
+      - name: Install Syft (SBOM generator)
+        uses: anchore/sbom-action/download-syft@ab9d16d4b419c9d1a02df5213fa0ebe965ca5a57 # v0.15.9
+
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sign image with Cosign (keyless → Rekor transparency log)
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          echo "Signing: ${{ inputs.image_ref }}"
+          cosign sign --yes "${{ inputs.image_ref }}"
+          echo "::notice::✅ Image signed — entry recorded in Rekor transparency log"
+          echo "::notice::Verify with: cosign verify ${{ inputs.image_ref }} --certificate-identity-regexp='.*' --certificate-oidc-issuer='https://token.actions.githubusercontent.com'"
+
+      - name: Generate SBOM with Syft (SPDX + CycloneDX)
+        run: |
+          syft "${{ inputs.ghcr_image }}@${{ inputs.image_digest }}" \
+            -o spdx-json=sbom-spdx.json \
+            -o cyclonedx-json=sbom-cyclonedx.json \
+            -o syft-json=sbom-syft.json
+          echo "::notice::✅ SBOM generated in SPDX, CycloneDX, and Syft formats"
+
+      - name: Attach SBOM to GHCR image via Cosign
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          cosign attest --yes \
+            --predicate sbom-spdx.json \
+            --type spdx \
+            "${{ inputs.image_ref }}"
+          echo "::notice::✅ SBOM attached to GHCR image"
+
+      - name: Upload SBOM as workflow artifact
+        uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3 # v4.3.1
+        with:
+          name: sbom-${{ github.run_id }}
+          path: |
+            sbom-spdx.json
+            sbom-cyclonedx.json
+            sbom-syft.json
+          retention-days: ${{ inputs.retention_days }}
+
+      - name: SLSA provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ inputs.ghcr_image }}
+          subject-digest: ${{ inputs.image_digest }}
+          push-to-registry: true
+
+      - name: Summary
+        run: |
+          echo "## Supply Chain Integrity" >> $GITHUB_STEP_SUMMARY
+          echo "| Artifact | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Cosign signature (Rekor) | ✅ Signed |" >> $GITHUB_STEP_SUMMARY
+          echo "| SBOM (SPDX + CycloneDX) | ✅ Generated & attached |" >> $GITHUB_STEP_SUMMARY
+          echo "| SLSA provenance | ✅ Attested |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** \`${{ inputs.image_ref }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Digest:** \`${{ inputs.image_digest }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Verify signature:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "cosign verify ${{ inputs.image_ref }} \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --certificate-identity-regexp='https://github.com/${{ github.repository }}.*' \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --certificate-oidc-issuer='https://token.actions.githubusercontent.com'" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

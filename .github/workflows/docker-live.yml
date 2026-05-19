@@ -1,0 +1,193 @@
+name: Docker - Build & Publish :live
+
+# Builds the "live" image: no data baked in, fetches from data.solveit-df.org at startup.
+# Rebuilds only when MCP repo main SHA has changed since last published :live image.
+# Publishes :live and :live-<mcp-sha> to GHCR and Docker Hub.
+# Post-publish: Trivy scan (all arches), Cosign sign, SBOM, SLSA provenance.
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'   # Every Monday 04:00 UTC
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force rebuild even if SHA unchanged'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  DOCKERHUB_REPO: 3soos3/solve-it-mcp
+  GHCR_REPO: ghcr.io/${{ github.repository_owner }}/solve-it-mcp
+  PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7
+
+jobs:
+  check:
+    name: Check if rebuild needed
+    runs-on: ubuntu-latest
+    outputs:
+      rebuild: ${{ steps.decide.outputs.rebuild }}
+      mcp_sha: ${{ steps.decide.outputs.mcp_sha }}
+      mcp_version: ${{ steps.decide.outputs.mcp_version }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - name: Compare SHAs
+        id: decide
+        run: |
+          MCP_SHA=$(git rev-parse --short HEAD)
+          MCP_VERSION=$(grep '^version' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+
+          PUBLISHED_SHA=$(docker manifest inspect ${{ env.GHCR_REPO }}:live 2>/dev/null \
+            | jq -r '.annotations["org.opencontainers.image.revision"] // empty' || echo "")
+
+          echo "mcp_sha=${MCP_SHA}" >> $GITHUB_OUTPUT
+          echo "mcp_version=${MCP_VERSION}" >> $GITHUB_OUTPUT
+
+          if [ "${{ inputs.force }}" = "true" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "::notice::Force rebuild requested"
+          elif [ -z "$PUBLISHED_SHA" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "::notice::No published :live image found — rebuilding"
+          elif [ "$PUBLISHED_SHA" != "$MCP_SHA" ]; then
+            echo "rebuild=true" >> $GITHUB_OUTPUT
+            echo "::notice::MCP SHA changed: ${PUBLISHED_SHA} → ${MCP_SHA}"
+          else
+            echo "rebuild=false" >> $GITHUB_OUTPUT
+            echo "::notice::No changes — skipping (SHA: ${MCP_SHA})"
+          fi
+
+  build:
+    name: Build & Publish :live
+    needs: check
+    if: needs.check.outputs.rebuild == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v5.1.0
+        with:
+          context: .
+          file: Dockerfile.live
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: |
+            ${{ env.DOCKERHUB_REPO }}:live
+            ${{ env.GHCR_REPO }}:live
+            ${{ env.GHCR_REPO }}:live-${{ needs.check.outputs.mcp_sha }}
+          build-args: |
+            MCP_VERSION=${{ needs.check.outputs.mcp_version }}
+            VCS_REF=${{ needs.check.outputs.mcp_sha }}
+            BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          labels: |
+            org.opencontainers.image.revision=${{ needs.check.outputs.mcp_sha }}
+          cache-from: type=gha,scope=live
+          cache-to: type=gha,mode=max,scope=live
+          provenance: true
+
+      - name: Summary
+        run: |
+          echo "## :live published" >> $GITHUB_STEP_SUMMARY
+          echo "| | |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP SHA | \`${{ needs.check.outputs.mcp_sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| MCP Version | \`${{ needs.check.outputs.mcp_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Digest | \`${{ steps.build.outputs.digest }}\` |" >> $GITHUB_STEP_SUMMARY
+
+  trivy-scan:
+    name: Trivy scan (${{ matrix.platform }})
+    needs: [check, build]
+    if: needs.check.outputs.rebuild == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64, linux/arm/v7]
+    steps:
+      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - name: Login to GHCR
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull and export image for platform
+        run: |
+          PLATFORM_TAG=$(echo "${{ matrix.platform }}" | tr '/' '-' | sed 's/linux-//')
+          docker pull --platform ${{ matrix.platform }} \
+            ${{ env.GHCR_REPO }}:live-${{ needs.check.outputs.mcp_sha }}
+          docker save ${{ env.GHCR_REPO }}:live-${{ needs.check.outputs.mcp_sha }} \
+            -o /tmp/image-${PLATFORM_TAG}.tar
+          echo "PLATFORM_TAG=${PLATFORM_TAG}" >> $GITHUB_ENV
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          input: /tmp/image-${{ env.PLATFORM_TAG }}.tar
+          format: sarif
+          output: trivy-live-${{ env.PLATFORM_TAG }}.sarif
+          severity: CRITICAL,HIGH
+          scanners: vuln
+        continue-on-error: true
+      - uses: github/codeql-action/upload-sarif@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1
+        if: always()
+        with:
+          sarif_file: trivy-live-${{ env.PLATFORM_TAG }}.sarif
+          category: trivy-live-${{ env.PLATFORM_TAG }}
+        continue-on-error: true
+      - name: Fail on CRITICAL
+        run: |
+          COUNT=$(trivy image --input /tmp/image-${{ env.PLATFORM_TAG }}.tar \
+            --format json --severity CRITICAL --scanners vuln --quiet \
+            | jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length')
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::error::$COUNT CRITICAL CVEs on ${{ matrix.platform }}"
+            exit 1
+          fi
+          echo "::notice::✅ No CRITICAL CVEs on ${{ matrix.platform }}"
+
+  sign:
+    name: Sign & Attest
+    needs: [check, build, trivy-scan]
+    if: needs.check.outputs.rebuild == 'true'
+    uses: ./.github/workflows/reusable-docker-sign.yml
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      image_ref: ${{ needs.build.outputs.digest && format('{0}/solve-it-mcp:live@{1}', 'ghcr.io/3soos3', needs.build.outputs.digest) || '' }}
+      image_digest: ${{ needs.build.outputs.digest }}
+      ghcr_image: ghcr.io/${{ github.repository_owner }}/solve-it-mcp
+      retention_days: 90

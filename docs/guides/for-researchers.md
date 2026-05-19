@@ -1,466 +1,191 @@
-# SOLVE-IT MCP Server for Researchers
+# For Researchers
 
-This guide is designed for academic researchers studying digital forensics, conducting empirical studies, or citing SOLVE-IT in scholarly work.
-
-## Overview
-
-SOLVE-IT MCP Server provides researchers with:
-
-- **Structured access** to the complete SOLVE-IT digital forensics knowledge base
-- **Reproducible queries** for empirical studies
-- **Versioned data** for longitudinal research
-- **Programmatic API** for automated analysis
-- **Citation-ready** metadata and DOI references
+This guide is for academic researchers studying digital forensics, conducting empirical studies, or citing SOLVE-IT in scholarly work.
 
 ## Citing This Software
 
-### Academic Citation
-
-If you use SOLVE-IT MCP Server in your research, please cite it:
+### BibTeX
 
 ```bibtex
 @software{solve_it_mcp,
-  author = {3soos3},
-  title = {SOLVE-IT MCP Server: Production-ready MCP Server for Digital Forensics Knowledge Base},
-  year = {2026},
-  doi = {10.5281/zenodo.XXXXXXX},
-  url = {https://github.com/3soos3/solve-it-mcp},
+  author  = {3soos3},
+  title   = {SOLVE-IT MCP Server: Production-ready MCP Server for Digital Forensics Knowledge Base},
+  year    = {2026},
+  doi     = {10.5281/zenodo.XXXXXXX},
+  url     = {https://github.com/3soos3/solve-it-mcp},
   version = {0.2025.10.0.1.0}
 }
 ```
 
 ### Citing the SOLVE-IT Framework
 
-Additionally, cite the underlying SOLVE-IT framework:
+Also cite the underlying framework:
 
 ```bibtex
 @misc{solveit_framework,
   author = {SOLVE-IT-DF},
-  title = {SOLVE-IT: Standardized Framework for Digital Forensics Investigation},
-  year = {2025},
-  url = {https://github.com/SOLVE-IT-DF/solve-it},
-  note = {Version 0.2025-10}
+  title  = {SOLVE-IT: Standardized Framework for Digital Forensics Investigation},
+  year   = {2025},
+  url    = {https://github.com/SOLVE-IT-DF/solve-it},
+  note   = {Version 0.2025-10}
 }
 ```
 
-### APA Style
+### APA
 
-> 3soos3. (2026). *SOLVE-IT MCP Server: Production-ready MCP Server for Digital Forensics Knowledge Base* (Version 0.2025.10.0.1.0) [Computer software]. https://doi.org/10.5281/zenodo.XXXXXXX
+> 3soos3. (2026). *SOLVE-IT MCP Server* (Version 0.2025.10.0.1.0) [Computer software]. https://doi.org/10.5281/zenodo.XXXXXXX
 
-### IEEE Style
+### IEEE
 
-> [1] 3soos3, "SOLVE-IT MCP Server: Production-ready MCP Server for Digital Forensics Knowledge Base," Version 0.2025.10.0.1.0, 2026. [Online]. Available: https://doi.org/10.5281/zenodo.XXXXXXX
+> [1] 3soos3, "SOLVE-IT MCP Server," Version 0.2025.10.0.1.0, 2026. [Online]. Available: https://doi.org/10.5281/zenodo.XXXXXXX
 
-## Research Use Cases
+## Reproducibility
 
-### Use Case 1: Empirical Analysis of Forensic Techniques
+### Pin the Exact Version
 
-**Research Question**: How complete is the coverage of forensic techniques across different investigation objectives?
-
-**Methodology**:
-
-```bash
-# Get all techniques
-curl -X POST http://localhost:8000/mcp/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "tools/call",
-    "params": {
-      "name": "get_bulk_techniques_list",
-      "arguments": {}
-    }
-  }' > all_techniques.json
-
-# Get all objectives
-curl -X POST http://localhost:8000/mcp/v1/messages \
-  -H "Content-Type: application/json" \
-  -d '{
-    "method": "tools/call",
-    "params": {
-      "name": "list_objectives",
-      "arguments": {}
-    }
-  }' > all_objectives.json
-
-# Analyze coverage per objective
-for objective in $(cat all_objectives.json | jq -r '.objectives[]'); do
-    curl -X POST http://localhost:8000/mcp/v1/messages \
-      -H "Content-Type: application/json" \
-      -d "{
-        \"method\": \"tools/call\",
-        \"params\": {
-          \"name\": \"get_techniques_for_objective\",
-          \"arguments\": {
-            \"objective_name\": \"$objective\"
-          }
-        }
-      }" > "objective_${objective}.json"
-done
-```
-
-### Use Case 2: Weakness-Mitigation Relationship Analysis
-
-**Research Question**: What is the distribution of mitigations across weakness types?
-
-**Methodology**:
-
-```python
-import requests
-import json
-import pandas as pd
-
-def analyze_weakness_mitigation_coverage():
-    # Get all weaknesses
-    response = requests.post(
-        "http://localhost:8000/mcp/v1/messages",
-        json={
-            "method": "tools/call",
-            "params": {
-                "name": "get_bulk_weaknesses_list",
-                "arguments": {}
-            }
-        }
-    )
-    weaknesses = response.json()
-    
-    # For each weakness, count mitigations
-    coverage_data = []
-    for weakness in weaknesses['weaknesses']:
-        w_id = weakness['id']
-        
-        # Get mitigations for this weakness
-        response = requests.post(
-            "http://localhost:8000/mcp/v1/messages",
-            json={
-                "method": "tools/call",
-                "params": {
-                    "name": "get_mitigations_for_weakness",
-                    "arguments": {"weakness_id": w_id}
-                }
-            }
-        )
-        mitigations = response.json()
-        
-        coverage_data.append({
-            'weakness_id': w_id,
-            'weakness_name': weakness['name'],
-            'mitigation_count': len(mitigations.get('mitigations', []))
-        })
-    
-    # Convert to DataFrame for analysis
-    df = pd.DataFrame(coverage_data)
-    
-    # Statistical analysis
-    print("Mitigation Coverage Statistics:")
-    print(df['mitigation_count'].describe())
-    
-    # Identify gaps (weaknesses with few mitigations)
-    gaps = df[df['mitigation_count'] < 2]
-    print(f"\nWeaknesses with <2 mitigations: {len(gaps)}")
-    
-    return df
-
-# Run analysis
-results = analyze_weakness_mitigation_coverage()
-results.to_csv('weakness_mitigation_analysis.csv', index=False)
-```
-
-### Use Case 3: Longitudinal Study of Framework Evolution
-
-**Research Question**: How has the SOLVE-IT framework evolved over time?
-
-**Methodology**:
-
-1. **Version tracking**: Use Docker image tags to access historical versions
-
-```bash
-# Pull specific versions
-docker pull 3soos3/solve-it-mcp:v0.2025-09-0.1.0
-docker pull 3soos3/solve-it-mcp:v0.2025-10-0.1.0
-
-# Run comparative analysis
-# ... analyze differences between versions
-```
-
-2. **Data extraction**: Export complete datasets for each version
-
-```bash
-# Extract all data from a specific version
-docker run --rm 3soos3/solve-it-mcp:v0.2025-10-0.1.0 \
-  python3 -c "from solve_it_library import solve_it_library; \
-    import json; \
-    sil = solve_it_library(); \
-    print(json.dumps({
-      'techniques': sil.get_all_techniques_with_full_detail(),
-      'weaknesses': sil.get_all_weaknesses_with_full_detail(),
-      'mitigations': sil.get_all_mitigations_with_full_detail()
-    }))" > solve_it_v0.2025-10.json
-```
-
-## Reproducibility Guidelines
-
-### Version Specification
-
-Always specify exact versions in your research:
+Always specify an exact image tag in your research environment, never use `:latest`:
 
 ```yaml
 # research-environment.yml
 services:
   solve-it-mcp:
-    image: 3soos3/solve-it-mcp:v0.2025-10-0.1.0  # Specific version
-    # ... configuration
+    image: 3soos3/solve-it-mcp:v0.2025-10-abc1234
 ```
 
-### Data Provenance
+### Data Provenance Statement
 
-Document the data lineage in your papers:
+Example statement for papers:
 
-> "Data was accessed via SOLVE-IT MCP Server version 0.2025.10.0.1.0, 
-> which includes SOLVE-IT framework data version 0.2025-10. The server 
-> was run using Docker image 3soos3/solve-it-mcp:v0.2025-10-0.1.0 
-> (SHA256: [digest]) to ensure reproducibility."
+> Data was accessed via SOLVE-IT MCP Server version 0.2025.10.0.1.0, which includes SOLVE-IT framework data version 0.2025-10. The server was run using Docker image `3soos3/solve-it-mcp:v0.2025-10-0.1.0` (SHA256: [digest]) to ensure reproducibility.
 
-### Verification
+### Cryptographic Verification
 
-Verify data integrity using image signatures:
+Verify image integrity using Cosign (GHCR images carry signatures and SBOM):
 
 ```bash
-# Verify Docker image signature
 cosign verify ghcr.io/3soos3/solve-it-mcp:v0.2025-10-0.1.0 \
   --certificate-identity-regexp=github \
   --certificate-oidc-issuer=https://token.actions.githubusercontent.com
 
-# Download SBOM
 cosign download sbom ghcr.io/3soos3/solve-it-mcp:v0.2025-10-0.1.0 \
   > solve-it-mcp-sbom.json
 ```
 
-Include SBOM in research data repositories for complete provenance.
+Include the SBOM in your research data repository for complete provenance.
 
-## Dataset Access
+!!! note "Use `:release` images for research"
+    The `:release` image has both SOLVE-IT data and MCP code pinned at build time, and enables `FORENSIC_METADATA=true` by default. Each tool response includes a `_meta` block with the exact image tag and timestamp. This makes outputs citable and auditable. See [image types](../deployment/docker.md#image-types) for the full comparison.
 
-### Complete Data Export
+## Research Use Cases
 
-For offline analysis:
+### Empirical Analysis of Technique Coverage
 
 ```bash
-# Export all techniques with full details
+# Export all techniques
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 1,
     "method": "tools/call",
-    "params": {
-      "name": "get_bulk_techniques_full",
-      "arguments": {}
-    }
-  }' | jq '.content[0].text | fromjson' > techniques_full.json
+    "params": {"name": "get_all_techniques_with_full_detail", "arguments": {}}
+  }' > all_techniques.json
 
-# Export all weaknesses with full details
+# Export all weaknesses
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 2,
     "method": "tools/call",
-    "params": {
-      "name": "get_bulk_weaknesses_full",
-      "arguments": {}
-    }
-  }' | jq '.content[0].text | fromjson' > weaknesses_full.json
+    "params": {"name": "get_all_weaknesses_with_full_detail", "arguments": {}}
+  }' > all_weaknesses.json
 
-# Export all mitigations with full details
+# Export all mitigations
 curl -X POST http://localhost:8000/mcp/v1/messages \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -d '{
+    "jsonrpc": "2.0", "id": 3,
     "method": "tools/call",
-    "params": {
-      "name": "get_bulk_mitigations_full",
-      "arguments": {}
-    }
-  }' | jq '.content[0].text | fromjson' > mitigations_full.json
+    "params": {"name": "get_all_mitigations_with_full_detail", "arguments": {}}
+  }' > all_mitigations.json
 ```
 
-### Data Structure
-
-The SOLVE-IT knowledge base is organized as:
-
-```
-SOLVE-IT Framework
-├── Techniques (DFT-1001, DFT-1002, ...)
-│   ├── ID
-│   ├── Name
-│   ├── Description
-│   ├── Procedure
-│   ├── Weaknesses (references)
-│   └── Objectives (references)
-├── Weaknesses (DFW-1001, DFW-1002, ...)
-│   ├── ID
-│   ├── Name
-│   ├── Description
-│   ├── Related Techniques
-│   └── Mitigations (references)
-└── Mitigations (DFM-1001, DFM-1002, ...)
-    ├── ID
-    ├── Name
-    ├── Description
-    └── Addressed Weaknesses
-```
-
-See [Tools Overview](../reference/tools-overview.md) for available data access methods.
-
-## Ethical Considerations
-
-### Responsible Use
-
-When conducting research using SOLVE-IT:
-
-1. **Acknowledge limitations**: The framework is evolving and may not be comprehensive
-2. **Avoid overgeneralization**: Findings are specific to the framework version studied
-3. **Consider bias**: The framework reflects current forensic practices which may have inherent biases
-4. **Protect privacy**: If combining with real-world data, ensure proper anonymization
-
-### Human Subjects Research
-
-If your research involves forensic practitioners:
-
-- Obtain IRB approval where applicable
-- Ensure informed consent
-- Protect participant confidentiality
-- Follow institutional research ethics guidelines
-
-## Publishing Your Research
-
-### Data Availability Statements
-
-Example statement for your papers:
-
-> **Data Availability**: This research used SOLVE-IT MCP Server version 
-> 0.2025.10.0.1.0 (DOI: 10.5281/zenodo.XXXXXXX) with SOLVE-IT framework 
-> data version 0.2025-10. The complete dataset is publicly available and 
-> reproducible using Docker image 3soos3/solve-it-mcp:v0.2025-10-0.1.0. 
-> Analysis scripts and processed data are available in our research 
-> repository at [URL].
-
-### Code and Data Sharing
-
-Best practices for sharing your research:
-
-```
-research-repository/
-├── README.md                 # Study overview
-├── data/
-│   ├── raw/                 # Raw SOLVE-IT exports
-│   ├── processed/           # Your processed datasets
-│   └── metadata.json        # Data provenance
-├── scripts/
-│   ├── 01_data_collection.py
-│   ├── 02_analysis.py
-│   └── 03_visualization.py
-├── results/
-│   ├── figures/
-│   └── tables/
-├── docker-compose.yml       # Exact environment specification
-└── environment.yml          # Python environment
-```
-
-## Sample Research Projects
-
-### Project Template: Technique Coverage Analysis
-
-**Objective**: Analyze completeness of forensic technique documentation
-
-**Data Collection**:
+### Weakness–Mitigation Coverage Analysis (Python)
 
 ```python
-#!/usr/bin/env python3
-"""
-Collect SOLVE-IT technique data for coverage analysis.
-Research Project: Forensic Technique Documentation Completeness
-Author: [Your Name]
-Date: [Date]
-"""
-
 import requests
 import json
-from datetime import datetime
+import pandas as pd
 
-SERVER_URL = "http://localhost:8000/mcp/v1/messages"
+SERVER = "http://localhost:8000/mcp/v1/messages"
+HEADERS = {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream"
+}
 
-def collect_all_techniques():
-    """Collect complete technique dataset"""
-    response = requests.post(
-        SERVER_URL,
-        json={
-            "method": "tools/call",
-            "params": {
-                "name": "get_bulk_techniques_full",
-                "arguments": {}
-            }
-        }
-    )
-    
-    data = response.json()
-    techniques = json.loads(data['content'][0]['text'])
-    
-    # Add metadata
-    metadata = {
-        'collection_date': datetime.utcnow().isoformat(),
-        'server_version': '0.2025.10.0.1.0',
-        'solveit_version': '0.2025-10',
-        'technique_count': len(techniques)
-    }
-    
-    return {
-        'metadata': metadata,
-        'techniques': techniques
-    }
+def call_tool(name, arguments=None):
+    r = requests.post(SERVER, headers=HEADERS, json={
+        "jsonrpc": "2.0", "id": 1,
+        "method": "tools/call",
+        "params": {"name": name, "arguments": arguments or {}}
+    })
+    for line in r.text.splitlines():
+        if line.startswith("data:"):
+            payload = json.loads(line[5:].strip())
+            text = payload.get("result", {}).get("content", [{}])[0].get("text", "{}")
+            return json.loads(text)
+    return {}
 
-if __name__ == '__main__':
-    dataset = collect_all_techniques()
-    
-    # Save with timestamp
-    filename = f"techniques_dataset_{dataset['metadata']['collection_date']}.json"
-    with open(filename, 'w') as f:
-        json.dump(dataset, f, indent=2)
-    
-    print(f"Dataset saved: {filename}")
-    print(f"Techniques collected: {dataset['metadata']['technique_count']}")
+weaknesses = call_tool("get_all_weaknesses_with_name_and_id")
+
+coverage_data = []
+for w in weaknesses.get("weaknesses", []):
+    mitigations = call_tool("get_mitigations_for_weakness", {"weakness_id": w["id"]})
+    coverage_data.append({
+        "weakness_id": w["id"],
+        "weakness_name": w["name"],
+        "mitigation_count": len(mitigations.get("mitigations", []))
+    })
+
+df = pd.DataFrame(coverage_data)
+print(df["mitigation_count"].describe())
+gaps = df[df["mitigation_count"] < 2]
+print(f"Weaknesses with <2 mitigations: {len(gaps)}")
+df.to_csv("weakness_mitigation_coverage.csv", index=False)
 ```
-
-## Integration with Research Tools
 
 ### Jupyter Notebook Integration
 
 ```python
-# Install in notebook
-!pip install requests pandas matplotlib
-
 import requests
+import json
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Query SOLVE-IT MCP Server
-def query_solveit(tool_name, arguments):
-    response = requests.post(
-        "http://localhost:8000/mcp/v1/messages",
-        json={
-            "method": "tools/call",
-            "params": {
-                "name": tool_name,
-                "arguments": arguments
-            }
-        }
-    )
-    return response.json()
+SERVER = "http://localhost:8000/mcp/v1/messages"
+HEADERS = {
+    "Content-Type": "application/json",
+    "Accept": "application/json, text/event-stream"
+}
 
-# Example: Analyze technique distribution
-techniques = query_solveit("get_bulk_techniques_list", {})
-df = pd.DataFrame(techniques['techniques'])
+def call_tool(name, arguments=None):
+    r = requests.post(SERVER, headers=HEADERS, json={
+        "jsonrpc": "2.0", "id": 1,
+        "method": "tools/call",
+        "params": {"name": name, "arguments": arguments or {}}
+    })
+    for line in r.text.splitlines():
+        if line.startswith("data:"):
+            payload = json.loads(line[5:].strip())
+            text = payload.get("result", {}).get("content", [{}])[0].get("text", "{}")
+            return json.loads(text)
+    return {}
 
-# Visualize
-df['technique_category'].value_counts().plot(kind='bar')
-plt.title('Distribution of Forensic Techniques by Category')
-plt.xlabel('Category')
-plt.ylabel('Count')
-plt.show()
+data = call_tool("get_all_techniques_with_name_and_id")
+techniques = data.get("techniques", [])
+print(f"Total techniques: {len(techniques)}")
 ```
 
 ### R Integration
@@ -469,70 +194,88 @@ plt.show()
 library(httr)
 library(jsonlite)
 
-# Query SOLVE-IT MCP Server from R
-query_solveit <- function(tool_name, arguments) {
+call_tool <- function(tool_name, arguments = list()) {
   response <- POST(
     "http://localhost:8000/mcp/v1/messages",
+    add_headers(
+      "Content-Type" = "application/json",
+      "Accept" = "application/json, text/event-stream"
+    ),
     body = list(
+      jsonrpc = "2.0", id = 1,
       method = "tools/call",
-      params = list(
-        name = tool_name,
-        arguments = arguments
-      )
+      params = list(name = tool_name, arguments = arguments)
     ),
     encode = "json"
   )
-  
   content(response, "parsed")
 }
 
-# Example usage
-techniques <- query_solveit("get_bulk_techniques_list", list())
-df <- as.data.frame(techniques$techniques)
-
-# Statistical analysis
-summary(df)
+techniques <- call_tool("get_all_techniques_with_name_and_id")
 ```
 
-## Community Contributions
+## Data Structure
 
-### Sharing Your Findings
+The SOLVE-IT knowledge base is organized as:
 
-Consider sharing your research findings with the SOLVE-IT community:
+```
+SOLVE-IT Framework
+├── Techniques (DFT-XXXX)
+│   ├── ID, Name, Description, Procedure
+│   ├── Weaknesses (references to DFW-XXXX)
+│   └── Objectives (references)
+├── Weaknesses (DFW-XXXX)
+│   ├── ID, Name, Description
+│   ├── Related Techniques
+│   └── Mitigations (references to DFM-XXXX)
+├── Mitigations (DFM-XXXX)
+│   ├── ID, Name, Description
+│   └── Addressed Weaknesses
+└── Citations (DFCite-XXXX)
+    └── Full bibliographic text
+```
 
-1. **GitHub Discussions**: Share insights and findings
-2. **Pull Requests**: Suggest framework improvements based on your research
-3. **Publications**: Link your papers in project discussions
-4. **Datasets**: Share derived datasets (if permissible)
+## Publishing Your Research
 
-### Collaborative Research
+### Data Availability Statement
 
-Connect with other researchers:
+> **Data Availability**: This research used SOLVE-IT MCP Server version 0.2025.10.0.1.0 (DOI: 10.5281/zenodo.XXXXXXX) with SOLVE-IT framework data version 0.2025-10. The complete dataset is publicly available and reproducible using Docker image `3soos3/solve-it-mcp:v0.2025-10-0.1.0`. Analysis scripts and processed data are available at [URL].
+
+### Recommended Repository Structure
+
+```
+research-repository/
+├── README.md
+├── docker-compose.yml          # Exact image version pinned
+├── data/
+│   ├── raw/                    # Raw SOLVE-IT exports
+│   ├── processed/              # Your processed datasets
+│   └── metadata.json           # Data provenance
+└── scripts/
+    ├── 01_collect.py
+    ├── 02_analyze.py
+    └── 03_visualize.py
+```
+
+## Ethical Considerations
+
+- **Acknowledge limitations**: The framework is evolving and may not be comprehensive
+- **Avoid overgeneralization**: Findings are specific to the framework version studied
+- **Protect privacy**: If combining with real-world case data, apply proper anonymization
+- **Follow IRB/ethics guidelines** when your research involves human subjects
+
+## Community
 
 - [SOLVE-IT Discussions](https://github.com/SOLVE-IT-DF/solve-it/discussions)
 - [MCP Server Discussions](https://github.com/3soos3/solve-it-mcp/discussions)
-- Digital forensics research conferences (DFRWS, etc.)
+- Digital forensics conferences: DFRWS, IFIP WG 11.9
 
-## License and Usage Rights
+## License
 
-This software is licensed under the MIT License, allowing:
-
-- ✅ Commercial and academic use
-- ✅ Modification and distribution
-- ✅ Private use
-- ⚠️ **Requirement**: Include original license and copyright notice
-
-See [LICENSE](https://github.com/3soos3/solve-it-mcp/blob/main/LICENSE) for full terms.
+MIT License — allows commercial and academic use, modification, and distribution. Attribution required.
 
 ## Next Steps
 
-- **Explore the data**: [Reference Documentation](../reference/tools-overview.md)
-- **Set up environment**: [Getting Started](../getting-started.md)
-- **Learn architecture**: [Architecture Overview](../architecture/overview.md)
-- **Deploy for research**: [Kubernetes Deployment](../deployment/kubernetes.md)
-
-## Getting Help
-
-- **Research Questions**: [GitHub Discussions](https://github.com/3soos3/solve-it-mcp/discussions)
-- **Bug Reports**: [GitHub Issues](https://github.com/3soos3/solve-it-mcp/issues)
-- **Collaboration**: Reach out via GitHub or academic conferences
+- [Tools Reference](../reference/tools-overview.md) — all 24 available tools
+- [Getting Started](../getting-started.md) — quick setup
+- [Docker Deployment](../deployment/docker.md) — image types and tags for pinning versions

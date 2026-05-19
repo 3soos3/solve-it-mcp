@@ -176,7 +176,7 @@ async def run_stdio_server(server: Server) -> None:
 
             # Log each exception in the group
             for i, exc in enumerate(e.exceptions):
-                logger.critical(f"  Exception {i+1}: {type(exc).__name__}: {exc}")
+                logger.critical(f"  Exception {i + 1}: {type(exc).__name__}: {exc}")
                 logger.critical(
                     f"  Traceback: "
                     f"{''.join(traceback.format_exception(type(exc), exc, exc.__traceback__))}"
