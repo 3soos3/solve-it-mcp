@@ -249,7 +249,7 @@ jobs:
     name: Gate
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, test, bandit, pip-audit, secret-scan, hadolint, docker-validate]
+    needs: [lint, test, bandit, pip-audit, secret-scan, hadolint, docker-validate, dependency-review]
     steps:
       - name: Evaluate gate
         run: |
@@ -260,11 +260,12 @@ jobs:
           SECRET="${{ needs.secret-scan.result }}"
           HADOLINT="${{ needs.hadolint.result }}"
           DOCKER="${{ needs.docker-validate.result }}"
+          DEPS="${{ needs.dependency-review.result }}"
 
           echo "## Gate Results" >> $GITHUB_STEP_SUMMARY
           echo "| Check | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          for name_result in "Lint:$LINT" "Tests:$TEST" "Bandit:$BANDIT" "pip-audit:$PIP" "Secrets:$SECRET" "Hadolint:$HADOLINT" "Docker:$DOCKER"; do
+          for name_result in "Lint:$LINT" "Tests:$TEST" "Bandit:$BANDIT" "pip-audit:$PIP" "Secrets:$SECRET" "Hadolint:$HADOLINT" "Docker:$DOCKER" "Dependency Review:$DEPS"; do
             NAME="${name_result%%:*}"
             RESULT="${name_result##*:}"
             case "$RESULT" in
@@ -275,8 +276,14 @@ jobs:
             echo "| $NAME | $ICON $RESULT |" >> $GITHUB_STEP_SUMMARY
           done
 
-          # Hard failures
-          if [[ "$LINT" == "failure" || "$TEST" == "failure" || "$DOCKER" == "failure" ]]; then
-            echo "::error::Gate failed: lint, test, or docker build failed"
-            exit 1
-          fi
+          # Hard failures — skipped is allowed (dependency-review only runs on PRs)
+          FAILED=0
+          for name_result in "Lint:$LINT" "Tests:$TEST" "Docker:$DOCKER" "Bandit:$BANDIT" "pip-audit:$PIP" "Secrets:$SECRET" "Hadolint:$HADOLINT" "Dependency Review:$DEPS"; do
+            NAME="${name_result%%:*}"
+            RESULT="${name_result##*:}"
+            if [[ "$RESULT" == "failure" ]]; then
+              echo "::error::Gate failed: $NAME failed"
+              FAILED=1
+            fi
+          done
+          if [[ "$FAILED" == "1" ]]; then exit 1; fi
