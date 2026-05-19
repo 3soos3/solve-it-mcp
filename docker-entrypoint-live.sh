@@ -18,9 +18,13 @@ if wget --spider --quiet --timeout=10 --tries=1 "$DATA_URL" 2>/dev/null; then
     echo "[entrypoint] Reachable — fetching latest data ..."
     if wget --no-verbose --timeout=60 -O "$ARCHIVE_PATH" "$DATA_URL"; then
         echo "[entrypoint] Extracting to ${DATA_PARENT} ..."
-        unzip -q -o "$ARCHIVE_PATH" -d "$DATA_PARENT"
-        rm -f "$ARCHIVE_PATH"
-        echo "[entrypoint] Data ready at ${DATA_DIR}"
+        if unzip -q -o "$ARCHIVE_PATH" -d "$DATA_PARENT"; then
+            rm -f "$ARCHIVE_PATH"
+            echo "[entrypoint] Data ready at ${DATA_DIR}"
+        else
+            rm -f "$ARCHIVE_PATH"
+            echo "[entrypoint] Extract failed (corrupted archive?) — using cached data." >&2
+        fi
     else
         rm -f "$ARCHIVE_PATH"
         echo "[entrypoint] Download failed — using cached data." >&2

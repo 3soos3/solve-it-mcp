@@ -11,7 +11,7 @@ FROM python:3.12-alpine AS builder
 
 # Build args
 ARG SOLVE_IT_VERSION=main
-ARG SOLVE_IT_RELEASE=unknown
+ARG SOLVE_IT_SHA=unknown
 ARG MCP_VERSION=unknown
 
 # Install build dependencies (will be removed in same layer)
@@ -61,7 +61,7 @@ ARG BUILD_DATE
 ARG VCS_REF
 ARG VERSION=release
 ARG BUILD_DATE_RFC3339=${BUILD_DATE:-1970-01-01T00:00:00Z}
-ARG SOLVE_IT_RELEASE=unknown
+ARG SOLVE_IT_SHA=unknown
 ARG MCP_VERSION=unknown
 
 # Metadata labels following OCI Image Spec
@@ -110,6 +110,9 @@ COPY --from=builder --chown=mcpuser:mcpuser /tmp/solve-it-main /app/solve-it-mai
 USER mcpuser
 
 # Environment variables with sensible defaults
+# FORENSIC_METADATA=true: release images embed audit/compliance traceability
+# metadata in tool responses. Standard (:latest) and live images leave this
+# false to keep responses lightweight.
 ENV PYTHONPATH=/app/src \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -122,7 +125,7 @@ ENV PYTHONPATH=/app/src \
     LOG_LEVEL=INFO \
     LOG_FORMAT=json \
     TMPDIR=/tmp/app-tmp \
-    IMAGE_TAG=${SOLVE_IT_RELEASE}-${MCP_VERSION} \
+    IMAGE_TAG=${SOLVE_IT_SHA}-${MCP_VERSION} \
     MCP_VERSION=${MCP_VERSION} \
     FORENSIC_METADATA=true
 

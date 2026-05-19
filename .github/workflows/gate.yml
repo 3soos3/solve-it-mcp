@@ -204,6 +204,31 @@ jobs:
           sarif_file: trivy-gate.sarif
           category: trivy-gate
         continue-on-error: true
+      - name: Build live image (no push)
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v5.1.0
+        with:
+          context: .
+          file: Dockerfile.live
+          platforms: linux/amd64
+          push: false
+          build-args: |
+            MCP_VERSION=gate
+            VCS_REF=gate
+          cache-from: type=gha,scope=gate-live
+          cache-to: type=gha,mode=max,scope=gate-live
+      - name: Build release image (no push)
+        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v5.1.0
+        with:
+          context: .
+          file: Dockerfile.release
+          platforms: linux/amd64
+          push: false
+          build-args: |
+            SOLVE_IT_VERSION=main
+            SOLVE_IT_SHA=gate
+            MCP_VERSION=gate
+          cache-from: type=gha,scope=gate-release
+          cache-to: type=gha,mode=max,scope=gate-release
 
   # ── Dependency review (PRs only) ──────────────────────────────────────────
   dependency-review:
