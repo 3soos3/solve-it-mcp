@@ -150,7 +150,7 @@ force-sort-within-sections = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]  # Add src to Python path for imports
+pythonpath = ["src", "."]  # src for tool imports; . makes `tests` package importable
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
