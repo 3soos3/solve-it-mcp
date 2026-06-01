@@ -6,7 +6,7 @@
 # ============================================================================
 # Stage 1: Builder
 # ============================================================================
-FROM python:3.12-alpine AS builder
+FROM python:3.14-alpine AS builder
 
 # Build args
 ARG SOLVE_IT_VERSION=main
@@ -53,7 +53,7 @@ RUN apk del .build-deps
 # ============================================================================
 # Stage 2: Runtime
 # ============================================================================
-FROM python:3.12-alpine AS runtime
+FROM python:3.14-alpine AS runtime
 
 # Build arguments for flexibility
 ARG BUILD_DATE
