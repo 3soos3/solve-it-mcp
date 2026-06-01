@@ -166,7 +166,7 @@ jobs:
       - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
       - name: Build standard image (no push)
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v5.1.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v5.1.0
         with:
           context: .
           file: Dockerfile
@@ -205,7 +205,7 @@ jobs:
           category: trivy-gate
         continue-on-error: true
       - name: Build live image (no push)
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v5.1.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v5.1.0
         with:
           context: .
           file: Dockerfile.live
@@ -217,7 +217,7 @@ jobs:
           cache-from: type=gha,scope=gate-live
           cache-to: type=gha,mode=max,scope=gate-live
       - name: Build release image (no push)
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v5.1.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v5.1.0
         with:
           context: .
           file: Dockerfile.release
